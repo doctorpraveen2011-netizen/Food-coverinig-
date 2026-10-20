@@ -94,6 +94,56 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       return { success: true, role: data.user.role };
     } catch (err: any) {
+      console.warn('Backend unavailable, checking demo credentials fallback:', err);
+      // Public deployment offline demo fallback
+      const lower = email.toLowerCase().trim();
+      let fallbackUser: User | null = null;
+      if (lower.includes('admin') || lower === 'admin@foodcovering.gov') {
+        fallbackUser = {
+          id: 'admin-01',
+          email: 'admin@foodcovering.gov',
+          username: 'admin',
+          fullName: 'Dr. Praveen (Administrator)',
+          phone: '+91 82488 32986',
+          role: 'HEAD_OFFICE_ADMIN',
+          isActive: true
+        };
+      } else if (lower.includes('supermarket') || lower.includes('store')) {
+        fallbackUser = {
+          id: 'spm-01',
+          email: 'supermarket@foodcovering.com',
+          username: 'supermarket_lead',
+          fullName: 'Rajesh Mehta (Store Lead)',
+          phone: '+91 98765 43210',
+          role: 'SUPERMARKET_OFFICIAL',
+          supermarket: { id: 'SM-001', name: 'FreshMart Supermarkets', code: 'FM-01' },
+          isActive: true
+        };
+      } else if (lower.includes('user') || lower.includes('praveen') || lower === 'citizen') {
+        fallbackUser = {
+          id: 'usr-01',
+          email: 'user@foodcovering.com',
+          username: 'praveen',
+          fullName: 'Praveen (Citizen / Donor)',
+          phone: '+91 82488 32986',
+          role: 'NORMAL_USER',
+          creditPoints: 525,
+          tier: 'Silver',
+          isActive: true
+        };
+      }
+
+      if (fallbackUser) {
+        localStorage.setItem('fc_auth_token', 'demo-public-token-2026');
+        set({
+          token: 'demo-public-token-2026',
+          user: fallbackUser,
+          isAuthenticated: true,
+          error: null
+        });
+        return { success: true, role: fallbackUser.role };
+      }
+
       const msg = err.message || 'Network error connecting to backend service';
       set({ error: msg });
       return { success: false, error: msg };

@@ -98,7 +98,7 @@ export default function CallContactButton({
 
     // 2. Build real dynamic message
     const representative = storeRepresentative || currentUser?.fullName || currentUser?.username || 'Rajesh Mehta (Store Lead)';
-    const store = storeName || currentUser?.supermarketName || 'FreshMart Supermarkets';
+    const store = storeName || currentUser?.supermarket?.name || 'FreshMart Supermarkets';
 
     const result = buildWhatsAppClickToChatUrl({
       phone: phoneNumber,

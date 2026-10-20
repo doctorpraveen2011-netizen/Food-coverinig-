@@ -312,8 +312,8 @@ export const UserDetailsDrawer: React.FC<UserDetailsDrawerProps> = ({
                 </a>
                 <a
                   href={normalizePhone(phone, {
-                    contactName: user.name,
-                    role: user.role,
+                    contactName: name,
+                    role: isVolunteer ? 'Volunteer Driver' : 'Donor / Citizen',
                     context: 'user-support'
                   }).whatsappCallHref}
                   target="_blank"

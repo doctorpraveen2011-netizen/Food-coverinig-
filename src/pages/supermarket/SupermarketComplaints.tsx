@@ -488,7 +488,7 @@ export default function SupermarketComplaints() {
                           context="complaint"
                           referenceId={c.id}
                           storeRepresentative={user?.fullName || user?.username || 'Rajesh Mehta (Store Lead)'}
-                          storeName={user?.supermarketName || c.seller || 'FreshMart Supermarkets'}
+                          storeName={user?.supermarket?.name || c.seller || 'FreshMart Supermarkets'}
                           variant="compact"
                         />
                       </div>
