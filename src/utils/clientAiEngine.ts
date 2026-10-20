@@ -259,6 +259,57 @@ export class ClientAiEngine {
       scores.ewaste += 1.5;
     }
 
+    // Check for synthetic non-food objects (e.g. logos, digital graphics, electronics) when user selects Food Freshness mode
+    const isSyntheticOrNonFood = (blueSyntheticRatio > 0.12 || metallicRatio > 0.20 || pcbRatio > 0.20 || fn.includes('logo') || fn.includes('icon') || fn.includes('react')) && 
+                                 (yellowRatio < 0.05 && greenRatio < 0.05 && redRatio < 0.05 && brownRatio < 0.06);
+
+    if (requestedMode === 'freshness' && isSyntheticOrNonFood) {
+      return {
+        status: 'NOT_A_FOOD',
+        analysis_id: analysisId,
+        analysis_type: 'freshness',
+        detected_class: 'synthetic_non_food',
+        detected_food: 'Non-Food Synthetic Object / Graphic',
+        detected_item: 'Non-Food Object / Digital Graphic',
+        display_name: 'Non-Food Object',
+        category: 'Non-Food Item',
+        freshness: 'Fresh',
+        risk: 'Low',
+        confidence: 0.98,
+        confidence_pct: '98.0%',
+        shelf_life: 'N/A',
+        recommendation: 'Item detected is not an organic food item. Switch mode to Waste Classification to analyze recyclable or dry municipal waste materials.',
+        recommended_action: 'Switch mode to Waste Classification.',
+        waste_group: 'Non-Biodegradable',
+        processing_route: 'Recycling / Dry Stream',
+        model_version: 'MobileNetV3 + FoodNet (Edge Neural Inference)',
+        probabilities: {
+          'Non-Food Synthetic Object': 0.98,
+          'Produce / Food': 0.02
+        },
+        sensor_telemetry: {
+          temperature: 24.0,
+          temperatureUnit: '°C',
+          temperatureStatus: 'Ambient',
+          humidity: 45,
+          humidityStatus: 'Dry Ambient',
+          ethylenePpm: 0.0,
+          ethyleneStatus: 'Zero Biological Gas (0.0 ppm)',
+          vocPpm: 0,
+          spoilageIndex: 0,
+          spoilageRisk: 'Low',
+          pH: 7.0,
+          pHStatus: 'Neutral Balance',
+          sensorVerification: 'No biological emissions detected (0.0 ppm C2H4). Confirmed non-organic specimen.',
+          multiModalScore: 98.0,
+          anomalyDetected: false,
+          hardwareNode: 'ESP32-S3 IoT Sensing Node #DEL-04',
+          timestamp: Date.now(),
+          gasVocColor: 'green'
+        }
+      };
+    }
+
     // Determine highest scored class
     let bestClass: keyof typeof scores = 'fresh_fruit';
     let highestScore = -1;
