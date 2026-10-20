@@ -1041,21 +1041,6 @@ export default function AiFoodWasteScan() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedImage('./samples/sample_fresh_apple.jpg');
-                      setFilename('sample_fresh_apple_grade_a.jpg');
-                      setCaptureSource('camera_capture');
-                      setCameraError(null);
-                      setIsCameraActive(false);
-                      handleAnalyzeImage('./samples/sample_fresh_apple.jpg', 'sample_fresh_apple_grade_a.jpg', 'freshness');
-                    }}
-                    className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold text-[11px] inline-flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-                  >
-                    <Sparkles className="w-3 h-3 text-emerald-200" />
-                    <span>Test with Sample Produce (Demo)</span>
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => cameraMobileInputRef.current?.click()}
                     className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 rounded-lg font-bold text-[11px] inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
