@@ -84,6 +84,73 @@ interface AnalysisHistoryItem {
   timestamp: number;
 }
 
+export interface SamplePreset {
+  id: string;
+  label: string;
+  badge: string;
+  badgeColor: string;
+  image: string;
+  filename: string;
+  mode: 'freshness' | 'waste';
+}
+
+export const DATASET_SAMPLE_PRESETS: SamplePreset[] = [
+  {
+    id: 'sample-fresh-apple',
+    label: 'Fresh Royal Gala Apple',
+    badge: 'Grade A Fresh',
+    badgeColor: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+    image: './samples/sample_fresh_apple.jpg',
+    filename: 'sample_fresh_apple_grade_a.jpg',
+    mode: 'freshness'
+  },
+  {
+    id: 'sample-rotten-banana',
+    label: 'Rotten Cavendish Banana',
+    badge: 'Decay / Critical Gas',
+    badgeColor: 'text-rose-700 bg-rose-50 border-rose-200',
+    image: './samples/sample_rotten_banana.jpg',
+    filename: 'sample_rotten_banana_decay.jpg',
+    mode: 'freshness'
+  },
+  {
+    id: 'sample-fresh-orange',
+    label: 'Fresh Valencia Orange',
+    badge: 'Certified Edible',
+    badgeColor: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+    image: './samples/sample_fresh_orange.jpg',
+    filename: 'sample_fresh_orange_citrus.jpg',
+    mode: 'freshness'
+  },
+  {
+    id: 'sample-rotten-apple',
+    label: 'Rotten Apple (Spoiled)',
+    badge: 'Microbial Rot',
+    badgeColor: 'text-rose-700 bg-rose-50 border-rose-200',
+    image: './samples/sample_rotten_apple.jpg',
+    filename: 'sample_rotten_apple_spoilage.jpg',
+    mode: 'freshness'
+  },
+  {
+    id: 'sample-plastic-bottle',
+    label: 'PET Plastic Bottle',
+    badge: 'Non-Bio Recyclable',
+    badgeColor: 'text-blue-700 bg-blue-50 border-blue-200',
+    image: './samples/sample_plastic_bottle.jpg',
+    filename: 'sample_plastic_bottle_pet.jpg',
+    mode: 'waste'
+  },
+  {
+    id: 'sample-food-waste',
+    label: 'Organic Food Residuals',
+    badge: 'Bio-Compostable',
+    badgeColor: 'text-teal-700 bg-teal-50 border-teal-200',
+    image: './samples/sample_food_waste.jpg',
+    filename: 'sample_food_waste_organic.jpg',
+    mode: 'waste'
+  }
+];
+
 export default function AiFoodWasteScan() {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
@@ -554,9 +621,27 @@ export default function AiFoodWasteScan() {
     stopCamera();
   };
 
-  // Manual Trigger: User clicks "Analyze Image"
-  const handleAnalyzeImage = async () => {
-    if (!selectedImage) return;
+  const handleSelectSample = (sample: SamplePreset) => {
+    setSelectedImage(sample.image);
+    setFilename(sample.filename);
+    setCaptureSource('camera_capture');
+    setAnalysisMode(sample.mode);
+    setResult(null);
+    setErrorState(null);
+    stopCamera();
+    handleAnalyzeImage(sample.image, sample.filename, sample.mode);
+  };
+
+  // Trigger: User clicks "Analyze Image" or selects an instant sample preset
+  const handleAnalyzeImage = async (
+    imageOverride?: string,
+    filenameOverride?: string,
+    modeOverride?: 'auto' | 'freshness' | 'waste'
+  ) => {
+    const targetImage = imageOverride || selectedImage;
+    const targetFilename = filenameOverride || filename || 'manual_scan.jpg';
+    const targetMode = modeOverride || analysisMode;
+    if (!targetImage) return;
 
     setIsAnalyzing(true);
     setErrorState(null);
@@ -570,10 +655,10 @@ export default function AiFoodWasteScan() {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          image: selectedImage,
-          analysis_mode: analysisMode,
+          image: targetImage,
+          analysis_mode: targetMode,
           source: captureSource,
-          filename: filename || 'manual_scan.jpg',
+          filename: targetFilename,
           userId: user?.id,
           userName: user?.fullName
         }),
@@ -669,7 +754,7 @@ export default function AiFoodWasteScan() {
         confidence: data.confidence_pct || `${Math.round((data.confidence || 0.95) * 100)}%`,
         shelfLife: data.shelf_life || (freshnessVal === 'Spoiled' ? 'Expired' : freshnessVal === 'Moderate' ? '1-2 days' : '3-5 days'),
         recommendation: data.recommendation || data.recommended_action || 'Analyzed via FoodCovering AI deep learning model.',
-        imageUrl: selectedImage || undefined,
+        imageUrl: targetImage || undefined,
         category: data.category,
         degradability: data.waste_group,
         gradcam_image: data.gradcam_image,
@@ -691,10 +776,10 @@ export default function AiFoodWasteScan() {
     } catch (err: any) {
       console.warn('Backend unavailable, running on-device ClientAiEngine inference:', err);
       try {
-        const clientResult = await ClientAiEngine.analyze(selectedImage, {
-          mode: analysisMode,
+        const clientResult = await ClientAiEngine.analyze(targetImage, {
+          mode: targetMode,
           source: captureSource,
-          filename: filename || 'camera_scan.jpg'
+          filename: targetFilename
         });
 
         setResult(clientResult);
@@ -714,7 +799,7 @@ export default function AiFoodWasteScan() {
           confidence: clientResult.confidence_pct,
           shelfLife: clientResult.shelf_life,
           recommendation: clientResult.recommendation,
-          imageUrl: selectedImage || undefined,
+          imageUrl: targetImage || undefined,
           category: clientResult.category,
           degradability: clientResult.waste_group,
           gradcam_image: clientResult.gradcam_image,
@@ -991,8 +1076,44 @@ export default function AiFoodWasteScan() {
                   </button>
                 </div>
 
+                {/* Instant 1-Click Inspection Presets */}
+                <div className="pt-3 border-t border-slate-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Instant Inspection Presets (Click any to test AI & Sensor Fusion):</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">1-Click Test</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {DATASET_SAMPLE_PRESETS.map((sample) => (
+                      <button
+                        key={sample.id}
+                        type="button"
+                        onClick={() => handleSelectSample(sample)}
+                        className="p-2 rounded-xl border border-slate-200/90 hover:border-emerald-500 bg-white hover:bg-emerald-50/40 text-left transition-all flex items-center gap-2 group cursor-pointer shadow-2xs"
+                      >
+                        <img
+                          src={sample.image}
+                          alt={sample.label}
+                          className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0 group-hover:scale-105 transition-transform"
+                        />
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-slate-900 block truncate group-hover:text-emerald-700">
+                            {sample.label}
+                          </span>
+                          <span className={`text-[10px] font-semibold block truncate px-1.5 py-0.5 rounded border mt-0.5 inline-block ${sample.badgeColor}`}>
+                            {sample.badge}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Mobile Camera Direct Option */}
-                <div className="text-center">
+                <div className="text-center pt-1">
                   <button
                     type="button"
                     onClick={() => cameraMobileInputRef.current?.click()}
@@ -1033,11 +1154,12 @@ export default function AiFoodWasteScan() {
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedImage('/samples/sample_fresh_apple.jpg');
+                      setSelectedImage('./samples/sample_fresh_apple.jpg');
                       setFilename('sample_fresh_apple_grade_a.jpg');
                       setCaptureSource('camera_capture');
                       setCameraError(null);
                       setIsCameraActive(false);
+                      handleAnalyzeImage('./samples/sample_fresh_apple.jpg', 'sample_fresh_apple_grade_a.jpg', 'freshness');
                     }}
                     className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold text-[11px] inline-flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
                   >
@@ -1263,7 +1385,7 @@ export default function AiFoodWasteScan() {
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleAnalyzeImage}
+                    onClick={() => handleAnalyzeImage()}
                     disabled={isAnalyzing}
                     className="flex-1 py-3 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all hover:scale-[1.01] cursor-pointer"
                   >
@@ -1420,7 +1542,7 @@ export default function AiFoodWasteScan() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={selectedImage ? handleAnalyzeImage : handleReset}
+                  onClick={selectedImage ? () => handleAnalyzeImage() : handleReset}
                   className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition-colors"
                 >
                   {selectedImage ? 'Retry Analysis' : 'Try Again'}
@@ -1883,6 +2005,24 @@ export default function AiFoodWasteScan() {
               <p className="text-xs text-slate-500 max-w-sm mt-1 leading-relaxed">
                 Prediction cards, confidence scores, and Grad-CAM attention visualizations will only generate after you explicitly upload or capture an image and click <strong>Analyze Image</strong>.
               </p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSelectSample(DATASET_SAMPLE_PRESETS[0])}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>Test Fresh Apple Specimen</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectSample(DATASET_SAMPLE_PRESETS[1])}
+                  className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-200" />
+                  <span>Test Rotten Banana Decay</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
