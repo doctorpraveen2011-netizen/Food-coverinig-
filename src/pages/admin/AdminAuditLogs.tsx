@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getStoredAuditLogs } from '../../data/mockDatabase';
 import { ShieldCheck, Search, Clock, User, Filter, AlertCircle } from 'lucide-react';
 
 export default function AdminAuditLogs() {
@@ -14,14 +15,17 @@ export default function AdminAuditLogs() {
       try {
         const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
         const res = await fetch(`${backendUrl}/api/admin/audit-logs`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(2000)
         });
         if (res.ok) {
           const data = await res.json();
           setAuditLogs(data.auditLogs || []);
+          return;
         }
+        throw new Error('Server non-ok');
       } catch (err) {
-        console.error(err);
+        setAuditLogs(getStoredAuditLogs());
       } finally {
         setLoading(false);
       }

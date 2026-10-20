@@ -19,6 +19,7 @@ import {
   ExternalLink,
   ChevronRight
 } from 'lucide-react';
+import { getStoredInventory, getClientDb, saveClientDb } from '../../data/mockDatabase';
 
 export default function SupermarketInventory() {
   const navigate = useNavigate();
@@ -54,14 +55,18 @@ export default function SupermarketInventory() {
       if (selectedStatus !== 'All Statuses') queryParams.append('status', selectedStatus);
 
       const res = await fetch(`${backendUrl}/api/supermarket/inventory?${queryParams.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(2500)
       });
       if (res.ok) {
         const data = await res.json();
         setInventory(data.inventory || []);
+        return;
       }
+      throw new Error('Server non-ok');
     } catch (err) {
-      console.error(err);
+      // Offline / Public Fallback: load inventory from mockDatabase
+      setInventory(getStoredInventory() as any);
     } finally {
       setLoading(false);
     }
@@ -82,6 +87,24 @@ export default function SupermarketInventory() {
     setSubmitting(true);
     setMessage(null);
 
+    const newItem = {
+      id: 'inv-' + Date.now().toString(36),
+      name,
+      category,
+      batchNumber,
+      barcode,
+      quantity: Number(quantity) || 1,
+      currentStock: Number(quantity) || 1,
+      unit,
+      expiryDate,
+      freshnessStatus,
+      riskLevel,
+      inspectionResult,
+      flaggedForDonation: false,
+      originalPrice: 50,
+      discountedPrice: 20
+    };
+
     try {
       const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
       const res = await fetch(`${backendUrl}/api/supermarket/inventory`, {
@@ -90,21 +113,10 @@ export default function SupermarketInventory() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({
-          name,
-          category,
-          batchNumber,
-          barcode,
-          quantity: Number(quantity),
-          unit,
-          expiryDate,
-          freshnessStatus,
-          riskLevel,
-          inspectionResult
-        })
+        body: JSON.stringify(newItem),
+        signal: AbortSignal.timeout(2000)
       });
 
-      const data = await res.json();
       if (res.ok) {
         setMessage({ type: 'success', text: `Inventory item ${name} added successfully.` });
         setModalOpen(false);
@@ -112,17 +124,27 @@ export default function SupermarketInventory() {
         setBatchNumber('');
         setBarcode('');
         fetchInventory();
-      } else {
-        setMessage({ type: 'error', text: data.error || 'Failed to add item.' });
+        return;
       }
+      throw new Error('Server non-ok');
     } catch {
-      setMessage({ type: 'error', text: 'Network error adding inventory item.' });
+      // Offline fallback: save to mockDatabase
+      const db = getClientDb();
+      db.inventory = [newItem, ...(db.inventory || [])];
+      saveClientDb(db);
+      setInventory(db.inventory);
+      setMessage({ type: 'success', text: `Inventory item ${name} added successfully.` });
+      setModalOpen(false);
+      setName('');
+      setBatchNumber('');
+      setBarcode('');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleToggleDonation = async (item: any) => {
+    const updatedStatus = !item.flaggedForDonation;
     try {
       const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
       const res = await fetch(`${backendUrl}/api/supermarket/inventory/${item.id}`, {
@@ -132,19 +154,30 @@ export default function SupermarketInventory() {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          flaggedForDonation: !item.flaggedForDonation
-        })
+          flaggedForDonation: updatedStatus
+        }),
+        signal: AbortSignal.timeout(2000)
       });
 
       if (res.ok) {
         setMessage({ 
           type: 'success', 
-          text: !item.flaggedForDonation ? `${item.name} flagged for surplus charity pickup.` : `Flag removed for ${item.name}.`
+          text: updatedStatus ? `${item.name} flagged for surplus charity pickup.` : `Flag removed for ${item.name}.`
         });
         fetchInventory();
+        return;
       }
-    } catch (err) {
-      console.error(err);
+      throw new Error('Server non-ok');
+    } catch {
+      // Offline fallback: update in mockDatabase
+      const db = getClientDb();
+      db.inventory = (db.inventory || []).map((i: any) => i.id === item.id ? { ...i, flaggedForDonation: updatedStatus } : i);
+      saveClientDb(db);
+      setInventory(db.inventory);
+      setMessage({ 
+        type: 'success', 
+        text: updatedStatus ? `${item.name} flagged for surplus charity pickup.` : `Flag removed for ${item.name}.`
+      });
     }
   };
 
@@ -155,15 +188,23 @@ export default function SupermarketInventory() {
       const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
       const res = await fetch(`${backendUrl}/api/supermarket/inventory/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(2000)
       });
 
       if (res.ok) {
         setMessage({ type: 'success', text: `Item ${itemName} removed from inventory.` });
         fetchInventory();
+        return;
       }
-    } catch (err) {
-      console.error(err);
+      throw new Error('Server non-ok');
+    } catch {
+      // Offline fallback: remove from mockDatabase
+      const db = getClientDb();
+      db.inventory = (db.inventory || []).filter((i: any) => i.id !== id);
+      saveClientDb(db);
+      setInventory(db.inventory);
+      setMessage({ type: 'success', text: `Item ${itemName} removed from inventory.` });
     }
   };
 

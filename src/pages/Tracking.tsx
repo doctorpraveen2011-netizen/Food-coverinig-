@@ -29,6 +29,7 @@ import {
   KeyRound
 } from 'lucide-react';
 import { DeliveryHandoverOtpModal } from '../components/donations/DeliveryHandoverOtpModal';
+import { getStoredDonations } from '../data/mockDatabase';
 
 interface DonationItem {
   id: string;
@@ -75,11 +76,10 @@ export default function Tracking() {
   const fetchDonations = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`${backendUrl}/api/v1/donations`);
+      const res = await fetch(`${backendUrl}/api/v1/donations`, { signal: AbortSignal.timeout(2500) });
       const data = await res.json();
       if (data.donations && data.donations.length > 0) {
         setDonationsList(data.donations);
-        // If URL has ?donationId=... use it, otherwise keep current or pick first
         const params = new URLSearchParams(window.location.search);
         const qId = params.get('donationId');
         if (qId && data.donations.some((d: DonationItem) => d.id === qId)) {
@@ -87,9 +87,16 @@ export default function Tracking() {
         } else if (!selectedDonationId) {
           setSelectedDonationId(data.donations[0].id);
         }
+        return;
       }
+      throw new Error('No donations from server');
     } catch (err) {
-      console.error('Failed to load donations for tracking:', err);
+      // Offline / Public Fallback: load complete fleet donations from mockDatabase
+      const stored = getStoredDonations();
+      setDonationsList(stored as any);
+      if (stored.length > 0 && !selectedDonationId) {
+        setSelectedDonationId(stored[0].id);
+      }
     } finally {
       setIsLoading(false);
     }

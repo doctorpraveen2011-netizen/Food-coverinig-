@@ -29,6 +29,7 @@ import {
 } from 'recharts';
 import TrackingMap from '../components/dashboard/TrackingMap';
 import { usePipelineStore } from '../store/usePipelineStore';
+import { getStoredUsers } from '../data/mockDatabase';
 
 export default function Dashboard() {
   const user = useAuthStore((state) => state.user);
@@ -55,16 +56,29 @@ export default function Dashboard() {
           ? 'http://localhost:5000' 
           : `http://${window.location.hostname}:5000`;
         const res = await fetch(`${backendUrl}/api/admin/dashboard`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: AbortSignal.timeout(2500)
         });
         if (res.ok) {
           const data = await res.json();
           if (data.userManagement) {
             setUserManagementData(data.userManagement);
+            return;
           }
         }
+        throw new Error('Server non-ok');
       } catch (err) {
-        console.error('Failed to fetch admin user management overview', err);
+        // Offline / Public Fallback: load user statistics from mockDatabase
+        const stored = getStoredUsers();
+        setUserManagementData({
+          totalStakeholders: stored.length,
+          activeUsers: stored.filter(u => u.isActive).length,
+          citizens: stored.filter(u => u.role === 'NORMAL_USER').length,
+          supermarketOfficials: stored.filter(u => u.role === 'SUPERMARKET_OFFICIAL').length,
+          administrators: stored.filter(u => u.role === 'HEAD_OFFICE_ADMIN').length,
+          fieldVolunteers: stored.filter(u => u.role === 'VOLUNTEER').length,
+          recentUsers: stored.slice(0, 5)
+        });
       }
     };
     fetchAdminDashboard();

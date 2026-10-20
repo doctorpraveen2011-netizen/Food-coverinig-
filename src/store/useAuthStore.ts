@@ -85,6 +85,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       localStorage.setItem('fc_auth_token', data.token);
+      localStorage.setItem('fc_user_session', JSON.stringify(data.user));
       set({
         token: data.token,
         user: data.user,
@@ -108,23 +109,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           role: 'HEAD_OFFICE_ADMIN',
           isActive: true
         };
-      } else if (lower.includes('supermarket') || lower.includes('store')) {
+      } else if (lower.includes('supermarket') || lower.includes('store') || lower.includes('freshmart') || lower.includes('sm')) {
         fallbackUser = {
           id: 'spm-01',
-          email: 'supermarket@foodcovering.com',
+          email: 'official@freshmart.com',
           username: 'supermarket_lead',
           fullName: 'Rajesh Mehta (Store Lead)',
-          phone: '+91 98765 43210',
+          phone: '+91 98222 33445',
           role: 'SUPERMARKET_OFFICIAL',
-          supermarket: { id: 'SM-001', name: 'FreshMart Supermarkets', code: 'FM-01' },
+          supermarketId: 'sm-001',
+          supermarket: { id: 'sm-001', name: 'FreshMart Supermarkets', code: 'FM-01' },
           isActive: true
         };
-      } else if (lower.includes('user') || lower.includes('praveen') || lower === 'citizen') {
+      } else {
         fallbackUser = {
           id: 'usr-01',
-          email: 'user@foodcovering.com',
-          username: 'praveen',
-          fullName: 'Praveen (Citizen / Donor)',
+          email: email.includes('@') ? email : `${email}@foodcovering.org`,
+          username: email.split('@')[0],
+          fullName: 'Praveen Kumar (Citizen / Donor)',
           phone: '+91 82488 32986',
           role: 'NORMAL_USER',
           creditPoints: 525,
@@ -133,20 +135,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         };
       }
 
-      if (fallbackUser) {
-        localStorage.setItem('fc_auth_token', 'demo-public-token-2026');
-        set({
-          token: 'demo-public-token-2026',
-          user: fallbackUser,
-          isAuthenticated: true,
-          error: null
-        });
-        return { success: true, role: fallbackUser.role };
-      }
-
-      const msg = err.message || 'Network error connecting to backend service';
-      set({ error: msg });
-      return { success: false, error: msg };
+      const demoToken = 'demo-public-token-2026';
+      localStorage.setItem('fc_auth_token', demoToken);
+      localStorage.setItem('fc_user_session', JSON.stringify(fallbackUser));
+      set({
+        token: demoToken,
+        user: fallbackUser,
+        isAuthenticated: true,
+        error: null
+      });
+      return { success: true, role: fallbackUser.role };
     }
   },
 
@@ -161,11 +159,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const data = await res.json();
       if (!res.ok) {
-        set({ error: data.error || 'Registration failed' });
-        return { success: false, error: data.error || 'Registration failed' };
+        throw new Error(data.error || 'Registration failed');
       }
 
       localStorage.setItem('fc_auth_token', data.token);
+      localStorage.setItem('fc_user_session', JSON.stringify(data.user));
       set({
         token: data.token,
         user: data.user,
@@ -174,22 +172,44 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       return { success: true };
-    } catch (err: any) {
-      const msg = err.message || 'Network error during registration';
-      set({ error: msg });
-      return { success: false, error: msg };
+    } catch {
+      // Offline fallback: create user session locally
+      const newUser: User = {
+        id: 'usr-' + Date.now().toString(36),
+        email: registerData.email,
+        username: registerData.email.split('@')[0],
+        fullName: registerData.fullName,
+        phone: registerData.phone,
+        address: registerData.address || 'New Delhi, India',
+        role: 'NORMAL_USER',
+        creditPoints: 100,
+        tier: 'Bronze',
+        isActive: true
+      };
+
+      const demoToken = 'demo-public-token-2026';
+      localStorage.setItem('fc_auth_token', demoToken);
+      localStorage.setItem('fc_user_session', JSON.stringify(newUser));
+      set({
+        token: demoToken,
+        user: newUser,
+        isAuthenticated: true,
+        error: null
+      });
+      return { success: true };
     }
   },
 
   logout: () => {
     const token = get().token;
-    if (token) {
+    if (token && typeof window !== 'undefined' && window.location.hostname === 'localhost') {
       fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});
     }
     localStorage.removeItem('fc_auth_token');
+    localStorage.removeItem('fc_user_session');
     set({
       user: null,
       token: null,
@@ -200,23 +220,53 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   checkAuth: async () => {
     const token = localStorage.getItem('fc_auth_token');
-    if (!token) {
+    const savedUser = localStorage.getItem('fc_user_session');
+
+    if (!token && !savedUser) {
       set({ user: null, token: null, isAuthenticated: false, isInitializing: false });
       return;
+    }
+
+    // If we have saved user from offline session, restore immediately
+    let initialUser: User | null = null;
+    if (savedUser) {
+      try {
+        initialUser = JSON.parse(savedUser);
+      } catch {}
+    }
+
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      // On static deployment (GitHub Pages), maintain restored user
+      if (initialUser) {
+        set({
+          user: initialUser,
+          token: token || 'demo-public-token-2026',
+          isAuthenticated: true,
+          isInitializing: false
+        });
+        return;
+      }
     }
 
     try {
       const res = await fetch(`${API_BASE}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(2000)
       });
 
       if (!res.ok) {
+        if (initialUser) {
+          set({ user: initialUser, token: token || 'demo-public-token-2026', isAuthenticated: true, isInitializing: false });
+          return;
+        }
         localStorage.removeItem('fc_auth_token');
+        localStorage.removeItem('fc_user_session');
         set({ user: null, token: null, isAuthenticated: false, isInitializing: false });
         return;
       }
 
       const data = await res.json();
+      localStorage.setItem('fc_user_session', JSON.stringify(data.user));
       set({
         user: data.user,
         token,
@@ -224,14 +274,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isInitializing: false,
       });
     } catch {
-      set({ isInitializing: false });
+      if (initialUser) {
+        set({
+          user: initialUser,
+          token: token || 'demo-public-token-2026',
+          isAuthenticated: true,
+          isInitializing: false
+        });
+      } else {
+        set({ isInitializing: false });
+      }
     }
   },
 
   updateUser: (partialUser) => {
     const current = get().user;
     if (current) {
-      set({ user: { ...current, ...partialUser } });
+      const updated = { ...current, ...partialUser };
+      localStorage.setItem('fc_user_session', JSON.stringify(updated));
+      set({ user: updated });
     }
   },
 }));

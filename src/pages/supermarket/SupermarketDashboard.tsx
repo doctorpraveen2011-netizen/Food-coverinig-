@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getStoredSupermarketDashboard } from '../../data/mockDatabase';
 import { 
   Store, 
   Package, 
@@ -32,14 +33,19 @@ export default function SupermarketDashboard() {
       try {
         const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
         const res = await fetch(`${backendUrl}/api/supermarket/dashboard`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(2500)
         });
         if (res.ok) {
           const data = await res.json();
           setDashboardData(data);
+          return;
         }
+        throw new Error('Server non-ok');
       } catch (err) {
-        console.error('Failed fetching supermarket dashboard', err);
+        // Offline / Public Fallback: load supermarket data from mockDatabase
+        const fallback = getStoredSupermarketDashboard(user?.supermarketId || 'sm-001');
+        setDashboardData(fallback);
       } finally {
         setLoading(false);
       }

@@ -7,6 +7,36 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
+const DEFAULT_SAMPLE_REPORT: AnalyzedFood = {
+  id: 'FC-INS-2026-9812',
+  food: 'Fresh Organic Red Apples',
+  displayName: 'Organic Royal Gala Apples (Malus domestica)',
+  freshness: 'Fresh',
+  risk: 'Low',
+  confidence: '98.4%',
+  shelfLife: '14 - 18 Days',
+  timestamp: Date.now() - 3600000 * 2,
+  imageUrl: './samples/sample_fresh_apple.jpg',
+  category: 'Fresh Produce (Organic Orchards)',
+  recommendation: 'Certified Safe for Retail Distribution & Consumer Dispatch. Keep cold storage at 2-4°C.',
+  sensorData: {
+    temperature: '3.8°C',
+    humidity: '88% RH',
+    gasVoc: '0.04 ppm (Ethylene Optimal)',
+    pH: '3.92 (Crisp acidity balance)'
+  },
+  sensor_telemetry: {
+    temperature_c: 3.8,
+    humidity_rh: 88.0,
+    ethylene_ppm: 0.04,
+    nh3_ppm: 0.01,
+    co2_ppm: 420
+  },
+  degradability: 'Biodegradable',
+  ecoImpact: '99.4% Carbon Offset Verified',
+  action: 'Certified Safe for Retail Distribution'
+};
+
 export default function Reports() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -43,7 +73,14 @@ export default function Reports() {
     }
   }, []);
 
-  const scanData = location.state?.latestScanResult || (history && history.length > 0 ? history[0] : serverScan);
+  const isUsingSample = !location.state?.latestScanResult && (!history || history.length === 0) && !serverScan;
+  const scanData: AnalyzedFood = location.state?.latestScanResult || (history && history.length > 0 ? history[0] : (serverScan || DEFAULT_SAMPLE_REPORT));
+
+  const getImgSrc = (url?: string) => {
+    if (!url) return '';
+    if (url.startsWith('/samples/')) return '.' + url;
+    return url;
+  };
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString('en-US', {
@@ -54,27 +91,6 @@ export default function Reports() {
 
   const [finalDecision, setFinalDecision] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
-
-  if (!scanData) {
-    return (
-      <div className="max-w-2xl mx-auto my-12 text-center p-8 bg-white rounded-2xl border border-slate-200 shadow-sm">
-        <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto mb-4">
-          <ShieldCheck className="w-8 h-8" />
-        </div>
-        <h2 className="text-xl font-bold text-slate-900 mb-2">No AI Food & Waste Scan Found</h2>
-        <p className="text-sm text-slate-600 max-w-md mx-auto mb-6 leading-relaxed">
-          Official food safety inspection and shelf-life audit reports are generated strictly after scanning an item with the FoodCovering AI Deep Learning engine.
-        </p>
-        <button
-          onClick={() => navigate('/user/ai-scan')}
-          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-sm inline-flex items-center gap-2 cursor-pointer"
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>Launch AI Food & Waste Scanner</span>
-        </button>
-      </div>
-    );
-  }
 
   const handleSubmit = () => {
     if (!finalDecision) {
@@ -127,6 +143,23 @@ export default function Reports() {
         <p className="text-xs text-gray-500 mt-1">AI-assisted food identification, freshness assessment, spoilage risk evaluation and shelf-life estimation</p>
       </div>
 
+      {isUsingSample && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span className="text-xs font-semibold text-emerald-900">
+              Displaying Official Sample Audit Report (Lot #FC-INS-2026-9812). Want to inspect your own food item?
+            </span>
+          </div>
+          <button
+            onClick={() => navigate('/user/ai-scan')}
+            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shrink-0"
+          >
+            Launch Live AI Scanner
+          </button>
+        </div>
+      )}
+
       {/* Meta Info */}
       <div className="grid grid-cols-4 gap-4 bg-white rounded-lg border p-4 shadow-sm">
         <div>
@@ -156,7 +189,7 @@ export default function Reports() {
           {/* Image */}
           <div className="w-48 h-48 bg-gray-50 rounded-lg flex flex-col items-center justify-center shrink-0 border border-gray-200 overflow-hidden relative">
              {scanData.imageUrl ? (
-               <img src={scanData.imageUrl} alt={scanData.food} className="w-full h-full object-cover" />
+               <img src={getImgSrc(scanData.imageUrl)} alt={scanData.food} className="w-full h-full object-cover" />
              ) : (
                <div className="w-24 h-24 border-4 border-amber-600 rounded-full flex items-center justify-center relative overflow-hidden">
                   <div className="absolute w-16 h-16 border-4 border-amber-600 rounded-full -top-4 -left-2"></div>
@@ -250,7 +283,7 @@ export default function Reports() {
           <div className="flex gap-4 mb-2">
              <div className="flex-1 bg-gray-50 rounded-lg p-0 border flex flex-col items-center justify-center h-40 overflow-hidden relative">
                 {scanData.imageUrl ? (
-                  <img src={scanData.imageUrl} alt="Original" className="w-full h-full object-cover" />
+                  <img src={getImgSrc(scanData.imageUrl)} alt="Original" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-16 h-16 border-4 border-amber-600 rounded-full flex items-center justify-center relative overflow-hidden">
                     <div className="absolute w-12 h-12 border-4 border-amber-600 rounded-full -top-3 -left-1"></div>
@@ -263,10 +296,10 @@ export default function Reports() {
                 {/* @ts-ignore */}
                 {scanData.gradcam_image ? (
                   /* @ts-ignore */
-                  <img src={scanData.gradcam_image} alt="AI Attention Grad-CAM" className="w-full h-full object-cover" />
+                  <img src={getImgSrc(scanData.gradcam_image)} alt="AI Attention Grad-CAM" className="w-full h-full object-cover" />
                 ) : scanData.imageUrl ? (
                   <div className="relative w-full h-full">
-                    <img src={scanData.imageUrl} alt="AI Attention" className="w-full h-full object-cover opacity-80" />
+                    <img src={getImgSrc(scanData.imageUrl)} alt="AI Attention" className="w-full h-full object-cover opacity-80" />
                     <div className="absolute inset-0 flex items-center justify-center mix-blend-multiply opacity-60">
                        <div className="w-10 h-10 bg-red-500 rounded-full blur-xl absolute -ml-4 -mt-4"></div>
                        <div className="w-12 h-12 bg-yellow-400 rounded-full blur-lg absolute ml-4"></div>
