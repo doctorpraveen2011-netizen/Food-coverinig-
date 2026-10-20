@@ -1,0 +1,111 @@
+{
+  "model_architecture": "efficientnet_b0",
+  "best_epoch": 5,
+  "test_accuracy": 1.0,
+  "macro_precision": 1.0,
+  "macro_recall": 1.0,
+  "macro_f1": 1.0,
+  "weighted_f1": 1.0,
+  "test_loss": 0.0031560510420925256,
+  "false_fresh_errors": 0,
+  "total_spoiled_tested": 1154,
+  "false_fresh_rate": 0.0,
+  "classes": [
+    "freshapples",
+    "freshbanana",
+    "freshoranges",
+    "rottenapples",
+    "rottenbanana",
+    "rottenoranges"
+  ],
+  "per_class": {
+    "freshapples": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 314
+    },
+    "freshbanana": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 294
+    },
+    "freshoranges": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 278
+    },
+    "rottenapples": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 442
+    },
+    "rottenbanana": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 413
+    },
+    "rottenoranges": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 299
+    }
+  },
+  "confusion_matrix": [
+    [
+      314,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      294,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      278,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      442,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      413,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      299
+    ]
+  ],
+  "model_file": "efficientnet_b0_best.pth",
+  "model_size_mb": 15.605619430541992
+}
