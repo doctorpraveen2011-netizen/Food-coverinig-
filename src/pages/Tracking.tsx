@@ -50,6 +50,25 @@ interface DonationItem {
   statusColor?: string;
 }
 
+const normalizeDonation = (raw: any): DonationItem => ({
+  id: raw.id || 'DC-' + Math.floor(10000 + Math.random() * 90000),
+  food: raw.food || raw.foodItems || raw.title || raw.foodName || 'Surplus Organic Produce',
+  qty: raw.qty || raw.quantity || raw.weight || '10 kg',
+  donor: raw.donor || raw.donorName || 'Food Donor',
+  phone: raw.phone || raw.donorPhone || '+91 98222 33445',
+  email: raw.email || raw.donorEmail || 'donor@foodcovering.org',
+  receiver: raw.receiver || raw.recipient || raw.recipientName || 'Community Shelter Hub',
+  volunteer: raw.volunteer || 'Arjun Sharma',
+  volunteerPhone: raw.volunteerPhone || '+91 98765 43210',
+  status: raw.status || 'In Transit',
+  date: raw.date || 'Today',
+  eta: raw.eta || '15 mins',
+  region: raw.region || 'Delhi NCR',
+  pickupAddress: raw.pickupAddress || raw.address || 'Connaught Place Volunteer Station, New Delhi',
+  destinationAddress: raw.destinationAddress || 'Community Distribution Hub #4',
+  statusColor: raw.statusColor || 'bg-emerald-100 text-emerald-800'
+});
+
 export default function Tracking() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportSubmitted, setReportSubmitted] = useState(false);
@@ -79,13 +98,14 @@ export default function Tracking() {
       const res = await fetch(`${backendUrl}/api/v1/donations`, { signal: AbortSignal.timeout(2500) });
       const data = await res.json();
       if (data.donations && data.donations.length > 0) {
-        setDonationsList(data.donations);
+        const normalized = data.donations.map(normalizeDonation);
+        setDonationsList(normalized);
         const params = new URLSearchParams(window.location.search);
         const qId = params.get('donationId');
-        if (qId && data.donations.some((d: DonationItem) => d.id === qId)) {
+        if (qId && normalized.some((d: DonationItem) => d.id === qId)) {
           setSelectedDonationId(qId);
         } else if (!selectedDonationId) {
-          setSelectedDonationId(data.donations[0].id);
+          setSelectedDonationId(normalized[0].id);
         }
         return;
       }
@@ -93,9 +113,10 @@ export default function Tracking() {
     } catch (err) {
       // Offline / Public Fallback: load complete fleet donations from mockDatabase
       const stored = getStoredDonations();
-      setDonationsList(stored as any);
-      if (stored.length > 0 && !selectedDonationId) {
-        setSelectedDonationId(stored[0].id);
+      const normalized = (stored || []).map(normalizeDonation);
+      setDonationsList(normalized);
+      if (normalized.length > 0 && !selectedDonationId) {
+        setSelectedDonationId(normalized[0].id);
       }
     } finally {
       setIsLoading(false);
@@ -196,9 +217,9 @@ export default function Tracking() {
       if (!fleetSearch) return true;
       const q = fleetSearch.toLowerCase();
       return (
-        d.id.toLowerCase().includes(q) ||
-        d.food.toLowerCase().includes(q) ||
-        d.donor.toLowerCase().includes(q) ||
+        (d.id || '').toLowerCase().includes(q) ||
+        (d.food || '').toLowerCase().includes(q) ||
+        (d.donor || '').toLowerCase().includes(q) ||
         (d.volunteer && d.volunteer.toLowerCase().includes(q)) ||
         (d.receiver && d.receiver.toLowerCase().includes(q))
       );
@@ -282,7 +303,7 @@ export default function Tracking() {
                     >
                       {donationsList.map(d => (
                         <option key={d.id} value={d.id}>
-                          {d.id} — {d.donor} ({d.food.slice(0, 22)})
+                          {d.id} — {d.donor || 'Donor'} ({(d.food || 'Surplus Produce').slice(0, 22)})
                         </option>
                       ))}
                     </select>
@@ -441,11 +462,11 @@ export default function Tracking() {
             <div className="flex flex-wrap justify-center items-center gap-3.5 text-xs font-semibold text-gray-600">
               <div className="flex items-center gap-1.5">
                 <MapPin className="w-4 h-4 text-emerald-600 fill-emerald-600 bg-emerald-100 rounded-full p-0.5" /> 
-                <span>Donor ({donorName.split(' ')[0]})</span>
+                <span>Donor ({(donorName || 'Donor').split(' ')[0]})</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Truck className="w-4 h-4 text-blue-600 fill-blue-600 bg-blue-100 rounded-full p-0.5" /> 
-                <span>Volunteer ({volunteerName.split(' ')[0]})</span>
+                <span>Volunteer ({(volunteerName || 'Driver').split(' ')[0]})</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <MapPin className="w-4 h-4 text-purple-600 fill-purple-600 bg-purple-100 rounded-full p-0.5" /> 

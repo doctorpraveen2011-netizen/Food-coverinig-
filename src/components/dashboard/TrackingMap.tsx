@@ -80,22 +80,33 @@ export interface TrackingMapProps {
   zoom?: number;
 }
 
-// Helper component to update map view dynamically
+// Helper component to update map view dynamically with safe checks
 function MapUpdater({ center, donor, dest }: { center: [number, number], donor: [number, number], dest: [number, number] }) {
   const map = useMap();
   const { mapAction, clearMapAction } = usePipelineStore();
 
   useEffect(() => {
-    map.setView(center, 13, { animate: true });
+    try {
+      if (map && center && !isNaN(center[0]) && !isNaN(center[1])) {
+        map.setView(center, map.getZoom() || 13, { animate: false });
+      }
+    } catch {
+      // Ignore animation interruption
+    }
   }, [center[0], center[1], map]);
 
   useEffect(() => {
-    if (mapAction === 'recenter') {
-      map.setView(center, 14, { animate: true });
-      clearMapAction();
-    } else if (mapAction === 'showFullRoute') {
-      const bounds = L.latLngBounds([donor, dest]);
-      map.fitBounds(bounds, { padding: [50, 50], animate: true });
+    try {
+      if (!map) return;
+      if (mapAction === 'recenter' && center && !isNaN(center[0]) && !isNaN(center[1])) {
+        map.setView(center, 14, { animate: true });
+        clearMapAction();
+      } else if (mapAction === 'showFullRoute' && donor && dest && !isNaN(donor[0]) && !isNaN(dest[0])) {
+        const bounds = L.latLngBounds([donor, dest]);
+        map.fitBounds(bounds, { padding: [50, 50], animate: true });
+        clearMapAction();
+      }
+    } catch {
       clearMapAction();
     }
   }, [mapAction, center, donor, dest, map, clearMapAction]);
@@ -106,10 +117,24 @@ function MapUpdater({ center, donor, dest }: { center: [number, number], donor: 
 export default function TrackingMap(props: TrackingMapProps = {}) {
   const { tracking } = usePipelineStore();
 
-  const donorPos: [number, number] = props.donorPos || tracking?.donorPos || [13.0827, 80.2707];
-  const volunteerPos: [number, number] = props.volunteerPos || tracking?.volunteerPos || [13.0850, 80.2750];
-  const facilityPos: [number, number] = props.facilityPos || tracking?.facilityPos || [13.0900, 80.2800];
-  const destinationPos: [number, number] = props.destinationPos || tracking?.destinationPos || [13.0950, 80.2850];
+  const safeNumber = (val: any, fallback: number) => (typeof val === 'number' && !isNaN(val)) ? val : fallback;
+
+  const donorPos: [number, number] = [
+    safeNumber(props.donorPos?.[0] ?? tracking?.donorPos?.[0], 28.6139),
+    safeNumber(props.donorPos?.[1] ?? tracking?.donorPos?.[1], 77.2090)
+  ];
+  const volunteerPos: [number, number] = [
+    safeNumber(props.volunteerPos?.[0] ?? tracking?.volunteerPos?.[0], 28.6174),
+    safeNumber(props.volunteerPos?.[1] ?? tracking?.volunteerPos?.[1], 77.2132)
+  ];
+  const facilityPos: [number, number] = [
+    safeNumber(props.facilityPos?.[0] ?? tracking?.facilityPos?.[0], 28.6214),
+    safeNumber(props.facilityPos?.[1] ?? tracking?.facilityPos?.[1], 77.2180)
+  ];
+  const destinationPos: [number, number] = [
+    safeNumber(props.destinationPos?.[0] ?? tracking?.destinationPos?.[0], 28.6259),
+    safeNumber(props.destinationPos?.[1] ?? tracking?.destinationPos?.[1], 77.2235)
+  ];
 
   const donorLabel = props.donorName || 'Food Junction';
   const volunteerLabel = props.volunteerName || 'Karthik S';

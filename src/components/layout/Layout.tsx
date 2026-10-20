@@ -3,6 +3,7 @@ import Sidebar from './Sidebar';
 import TopNavbar from './TopNavbar';
 import { useState, useEffect } from 'react';
 import { usePipelineStore } from '../../store/usePipelineStore';
+import ErrorBoundary from '../common/ErrorBoundary';
 
 export default function Layout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -32,7 +33,9 @@ export default function Layout() {
         <TopNavbar toggleSidebar={toggleSidebar} />
         
         <main className="flex-1 overflow-y-auto bg-white p-3 lg:p-4">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>
