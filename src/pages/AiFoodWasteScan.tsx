@@ -584,7 +584,7 @@ export default function AiFoodWasteScan() {
           userId: user?.id,
           userName: user?.fullName
         }),
-        signal: AbortSignal.timeout(2500)
+        signal: AbortSignal.timeout(8000)
       });
 
       const data = await res.json();
