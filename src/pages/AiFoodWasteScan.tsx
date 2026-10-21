@@ -2194,9 +2194,20 @@ export default function AiFoodWasteScan() {
                         <span className="text-amber-300 font-bold block text-[10px] uppercase tracking-wider mb-0.5">
                           Overall Segregation Protocol
                         </span>
-                        <p className="text-slate-200 text-[11px]">
-                          {result.scene_summary}
+                        <p className="text-slate-200 text-[11px] leading-relaxed">
+                          {typeof result.scene_summary === 'string'
+                            ? result.scene_summary
+                            : (result.scene_summary.segregation_guidance || `${result.scene_summary.total_objects || 1} item(s) detected in scene.`)}
                         </p>
+                        {typeof result.scene_summary === 'object' && Array.isArray(result.scene_summary.distinct_categories) && result.scene_summary.distinct_categories.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {result.scene_summary.distinct_categories.map((cat: string, cIdx: number) => (
+                              <span key={cIdx} className="bg-slate-700/80 text-amber-200 px-1.5 py-0.5 rounded text-[10px] font-medium border border-slate-600/50">
+                                {cat}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
