@@ -21,7 +21,7 @@ supermarketRouter.get('/dashboard', (req: Request, res: Response) => {
   const aiScans = db.listAiAnalyses();
 
   const scannedAlerts = aiScans
-    .filter(s => s.freshness === 'Near-Expiry' || s.freshness === 'Moderate' || s.freshness === 'Spoiled' || s.risk === 'High' || s.risk === 'Medium' || s.analysis_type === 'waste')
+    .filter(s => (s.freshness as string) === 'Near-Expiry' || s.freshness === 'Moderate' || s.freshness === 'Spoiled' || s.risk === 'High' || s.risk === 'Medium' || s.analysis_type === 'waste')
     .map(s => ({
       id: s.analysis_id,
       name: s.display_name || s.detected_food || 'AI Inspected Item',
@@ -730,7 +730,7 @@ supermarketRouter.get('/reports', (req: Request, res: Response) => {
   // Calculate live metrics strictly from REAL AI scans & live items
   const totalScans = aiScans.length;
   const freshScans = aiScans.filter(s => s.freshness === 'Fresh' || s.risk === 'Low' || (s.detected_class && s.detected_class.includes('fresh'))).length;
-  const nearExpiryBatches = aiScans.filter(s => s.freshness === 'Moderate' || s.risk === 'Medium' || s.recommended_action?.toLowerCase().includes('donate') || s.recommendation?.toLowerCase().includes('donate')).length;
+  const nearExpiryBatches = aiScans.filter(s => s.freshness === 'Moderate' || s.risk === 'Medium' || s.recommendation?.toLowerCase().includes('donate')).length;
   const spoiledBatches = aiScans.filter(s => s.freshness === 'Spoiled' || s.risk === 'High' || s.analysis_type === 'waste' || (s.detected_class && s.detected_class.includes('rotten'))).length;
   const bioWasteCount = aiScans.filter(s => s.waste_group === 'Biodegradable' || s.freshness === 'Spoiled').length;
   const recyclableCount = aiScans.filter(s => s.waste_group === 'Non-Biodegradable').length;

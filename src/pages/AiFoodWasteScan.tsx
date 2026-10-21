@@ -239,28 +239,48 @@ export default function AiFoodWasteScan() {
         setHistory(histData.analyses || []);
       }
     } catch (err) {
-      // Offline / Public Fallback: Compute real statistics from useAnalysisStore
+      // Offline / Fallback: Compute real statistics strictly from useAnalysisStore
       const storeHistory = useAnalysisStore.getState().history || [];
-      const freshCount = storeHistory.filter(h => h.freshness === 'Fresh' || h.risk === 'Low').length;
-      const wasteCount = storeHistory.filter(h => h.freshness === 'Spoiled' || h.mode === 'waste').length;
-      const total = Math.max(storeHistory.length, 14);
+      const total = storeHistory.length;
 
-      setStats({
-        totalAnalyses: total,
-        freshFoodCount: Math.max(freshCount, 9),
-        wasteCount: Math.max(wasteCount, 5),
-        averageConfidence: 96.8,
-        biodegradablePercentage: 68.4,
-        nonBiodegradablePercentage: 31.6,
-        categoryDistribution: [
-          { name: 'Fresh Fruits', count: 18 },
-          { name: 'Fresh Produce', count: 14 },
-          { name: 'Prepared Food', count: 8 },
-          { name: 'Recyclables', count: 6 }
-        ]
-      });
+      if (total === 0) {
+        setStats({
+          totalAnalyses: 0,
+          freshFoodCount: 0,
+          wasteCount: 0,
+          averageConfidence: null,
+          biodegradablePercentage: null,
+          nonBiodegradablePercentage: null,
+          categoryDistribution: []
+        });
+        setHistory([]);
+      } else {
+        const freshCount = storeHistory.filter(h => h.freshness === 'Fresh' || h.risk === 'Low').length;
+        const wasteCount = storeHistory.filter(h => h.mode === 'waste' || h.degradability).length;
+        const bioCount = storeHistory.filter(h => h.degradability === 'Biodegradable' || h.degradability?.includes('Biodegradable')).length;
+        const nonBioCount = storeHistory.filter(h => h.degradability === 'Non-Biodegradable' || h.degradability?.includes('Non-Biodegradable')).length;
 
-      if (storeHistory.length > 0) {
+        let totalConfidence = 0;
+        const catMap: Record<string, number> = {};
+        storeHistory.forEach(h => {
+          const confNum = parseFloat(h.confidence) || 90;
+          totalConfidence += confNum;
+          const cName = h.category || h.displayName || h.food || 'Other';
+          catMap[cName] = (catMap[cName] || 0) + 1;
+        });
+
+        const categoryDist = Object.entries(catMap).map(([name, count]) => ({ name, count }));
+
+        setStats({
+          totalAnalyses: total,
+          freshFoodCount: freshCount,
+          wasteCount: wasteCount,
+          averageConfidence: Math.round(totalConfidence / total),
+          biodegradablePercentage: (bioCount + nonBioCount > 0) ? Math.round((bioCount / (bioCount + nonBioCount)) * 100) : null,
+          nonBiodegradablePercentage: (bioCount + nonBioCount > 0) ? Math.round((nonBioCount / (bioCount + nonBioCount)) * 100) : null,
+          categoryDistribution: categoryDist
+        });
+
         const convertedHistory: AnalysisHistoryItem[] = storeHistory.map(h => ({
           analysis_id: h.id,
           analysis_type: (h.mode === 'waste' ? 'waste' : 'freshness'),
@@ -268,8 +288,8 @@ export default function AiFoodWasteScan() {
           image: h.imageUrl || h.gradcam_image || '',
           detected_class: (h.food || 'food').toLowerCase().replace(/\s+/g, '_'),
           display_name: h.displayName || h.food,
-          confidence: 0.96,
-          confidence_pct: h.confidence || '96%',
+          confidence: (parseFloat(h.confidence) || 90) / 100,
+          confidence_pct: h.confidence || '90%',
           recommendation: h.recommendation || 'Analyzed via FoodCovering AI.',
           model_version: 'MobileNetV3 Edge Inference',
           freshness: h.freshness,
@@ -749,10 +769,10 @@ export default function AiFoodWasteScan() {
         const scanItem = {
           food: foodName,
           displayName: foodName,
-          freshness: freshnessVal,
-          risk: riskVal,
+          freshness: freshnessVal || 'Fresh',
+          risk: riskVal || 'Low',
           confidence: clientResult.confidence_pct,
-          shelfLife: clientResult.shelf_life,
+          shelfLife: clientResult.shelf_life || 'N/A',
           recommendation: clientResult.recommendation,
           imageUrl: targetImage || undefined,
           category: clientResult.category,
@@ -761,13 +781,13 @@ export default function AiFoodWasteScan() {
           probabilities: clientResult.probabilities,
           mode: clientResult.analysis_type,
           sensor_telemetry: clientResult.sensor_telemetry,
-          sensorData: {
+          sensorData: clientResult.sensor_telemetry ? {
             temperature: `${clientResult.sensor_telemetry.temperature}°C`,
             humidity: `${clientResult.sensor_telemetry.humidity}%`,
             gasVoc: `${clientResult.sensor_telemetry.ethylenePpm} ppm C2H4`,
             pH: `${clientResult.sensor_telemetry.pH}`,
             gasVocColor: clientResult.sensor_telemetry.gasVocColor
-          }
+          } : undefined
         };
         useAnalysisStore.getState().addAnalysis(scanItem);
         await fetchStatsAndHistory();
@@ -847,20 +867,20 @@ export default function AiFoodWasteScan() {
         useAnalysisStore.getState().addAnalysis({
           food: foodName,
           displayName: foodName,
-          freshness: updated.freshness,
-          risk: updated.risk,
+          freshness: updated.freshness || 'Fresh',
+          risk: updated.risk || 'Low',
           confidence: updated.confidence_pct,
-          shelfLife: updated.shelf_life,
+          shelfLife: updated.shelf_life || 'N/A',
           recommendation: updated.recommendation,
           imageUrl: selectedImage || undefined,
           sensor_telemetry: updated.sensor_telemetry,
-          sensorData: {
+          sensorData: updated.sensor_telemetry ? {
             temperature: `${updated.sensor_telemetry.temperature}°C`,
             humidity: `${updated.sensor_telemetry.humidity}%`,
             gasVoc: `${updated.sensor_telemetry.ethylenePpm} ppm C2H4`,
             pH: `${updated.sensor_telemetry.pH}`,
             gasVocColor: updated.sensor_telemetry.gasVocColor
-          }
+          } : undefined
         });
       } catch (clientErr) {
         console.error('Error applying client sensor override:', clientErr);
@@ -1840,7 +1860,7 @@ export default function AiFoodWasteScan() {
                     </span>
                   </div>
                   <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                    FSSAI & Regulatory Compliant
+                    AI Visual Screening Assessment
                   </span>
                 </div>
 

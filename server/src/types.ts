@@ -82,6 +82,8 @@ export interface InventoryItem {
   inspectionResult?: string;
   flaggedForDonation: boolean;
   notes?: string;
+  imageUrl?: string;
+  createdAt: string;
   updatedAt: string;
 }
 

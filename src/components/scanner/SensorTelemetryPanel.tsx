@@ -60,10 +60,16 @@ export const SensorTelemetryPanel: React.FC<SensorTelemetryPanelProps> = ({
   const [customVoc, setCustomVoc] = useState<number>(telemetry?.vocPpm || 3.5);
   const [customPh, setCustomPh] = useState<number>(telemetry?.pH || 5.2);
 
-  if (!telemetry) {
+  if (!telemetry || (telemetry as any).available === false) {
     return (
-      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center text-xs text-slate-500">
-        Awaiting sensor telemetry synchronization...
+      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5 text-center">
+        <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-200/80 text-slate-500 mb-2">
+          <Radio className="w-5 h-5 text-slate-400" />
+        </div>
+        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Sensor data unavailable</h4>
+        <p className="text-[11px] text-slate-500 mt-1 max-w-md mx-auto">
+          No physical IoT chamber sensors (DHT22, MQ-135, SGP40) are attached to this specimen. Telemetry cards only display when authentic sensor hardware is connected.
+        </p>
       </div>
     );
   }
@@ -130,7 +136,7 @@ export const SensorTelemetryPanel: React.FC<SensorTelemetryPanelProps> = ({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
             <span className="text-xs font-mono font-bold tracking-wider text-emerald-400 uppercase">
-              IoT Sensor Telemetry • Multi-Modal Fusion
+              AI Food & Waste Intelligence Hub • Hardware Telemetry
             </span>
             <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
               Live Edge Node
@@ -138,7 +144,7 @@ export const SensorTelemetryPanel: React.FC<SensorTelemetryPanelProps> = ({
           </div>
           <h3 className="text-sm font-bold text-white mt-1 flex items-center gap-1.5">
             <Radio className="w-4 h-4 text-emerald-400" />
-            <span>Deep Learning Correlated Physical Sensors</span>
+            <span>AI Food & Waste Intelligence Hub</span>
           </h3>
         </div>
 

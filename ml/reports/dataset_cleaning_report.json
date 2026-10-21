@@ -1,54 +1,48 @@
 {
-  "dataset_name": "Kaggle Waste Segregation Dataset (archive 2)",
+  "dataset_name": "Kaggle Waste Segregation Image Dataset",
   "dataset_root": "C:\\Users\\PRAVEEN\\Downloads\\archive (2)\\Dataset",
   "total_images": 15366,
   "valid_images": 15366,
-  "corrupted_images": 0,
-  "duplicates_detected": 131,
+  "classes_count": 8,
+  "classes": [
+    "ewaste",
+    "food_waste",
+    "leaf_waste",
+    "metal_cans",
+    "paper_waste",
+    "plastic_bags",
+    "plastic_bottles",
+    "wood_waste"
+  ],
   "class_distribution": {
-    "food_waste": {
-      "train": 10066,
-      "val": 229,
-      "total": 10295
-    },
-    "leaf_waste": {
-      "train": 1179,
-      "val": 394,
-      "total": 1573
-    },
-    "paper_waste": {
-      "train": 860,
-      "val": 212,
-      "total": 1072
-    },
-    "wood_waste": {
-      "train": 593,
-      "val": 59,
-      "total": 652
-    },
-    "metal_cans": {
-      "train": 670,
-      "val": 69,
-      "total": 739
-    },
-    "plastic_bottles": {
-      "train": 417,
-      "val": 130,
-      "total": 547
-    },
-    "plastic_bags": {
-      "train": 200,
-      "val": 53,
-      "total": 253
-    },
-    "ewaste": {
-      "train": 180,
-      "val": 55,
-      "total": 235
-    }
+    "food_waste": 10295,
+    "leaf_waste": 1573,
+    "paper_waste": 1072,
+    "wood_waste": 652,
+    "ewaste": 235,
+    "metal_cans": 739,
+    "plastic_bags": 253,
+    "plastic_bottles": 547
+  },
+  "class_weights": {
+    "food_waste": 1.0,
+    "leaf_waste": 6.545,
+    "paper_waste": 9.604,
+    "wood_waste": 15.79,
+    "ewaste": 43.809,
+    "metal_cans": 13.931,
+    "plastic_bags": 40.692,
+    "plastic_bottles": 18.821
+  },
+  "split_counts": {
+    "train": 14165,
+    "val": 1201
   },
   "formats": {
     ".jpg": 15364,
     ".png": 2
-  }
+  },
+  "corrupted_count": 0,
+  "duplicate_count": 131,
+  "corrupted_files": []
 }

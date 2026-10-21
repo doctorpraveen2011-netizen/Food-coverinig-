@@ -1585,6 +1585,16 @@ class Database {
     return item;
   }
 
+  public addInventoryItem(item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): InventoryItem {
+    const newItem: InventoryItem = {
+      ...item,
+      id: item.id || 'inv-' + Date.now().toString(36),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    return this.createInventoryItem(newItem);
+  }
+
   public updateInventoryItem(id: string, updates: Partial<InventoryItem>): InventoryItem | undefined {
     const idx = this.data.inventory.findIndex(i => i.id === id);
     if (idx === -1) return undefined;

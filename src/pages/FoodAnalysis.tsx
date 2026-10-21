@@ -235,23 +235,25 @@ export default function FoodAnalysis() {
           filename: fileName || 'sample_analysis.jpg'
         });
 
-        const sensorPayload = {
+        const sensorPayload = clientResult.sensor_telemetry ? {
           temperature: `${clientResult.sensor_telemetry.temperature}°C`,
           humidity: `${clientResult.sensor_telemetry.humidity}%`,
           gasVoc: `${clientResult.sensor_telemetry.ethylenePpm} ppm C2H4`,
           pH: `${clientResult.sensor_telemetry.pH}`,
           gasVocColor: clientResult.sensor_telemetry.gasVocColor === 'red' ? 'text-rose-600' : clientResult.sensor_telemetry.gasVocColor === 'amber' ? 'text-amber-600' : 'text-green-600'
-        };
+        } : undefined;
 
-        setSensorData(sensorPayload);
+        if (sensorPayload) {
+          setSensorData(sensorPayload);
+        }
 
         const adaptedResult = {
           food: clientResult.display_name,
           displayName: clientResult.display_name,
-          freshness: clientResult.freshness,
-          risk: clientResult.risk,
+          freshness: clientResult.freshness || 'Fresh',
+          risk: clientResult.risk || 'Low',
           confidence: clientResult.confidence_pct,
-          shelfLife: clientResult.shelf_life,
+          shelfLife: clientResult.shelf_life || 'N/A',
           recommendation: clientResult.recommendation,
           imageUrl: dataUrl,
           degradability: clientResult.waste_group,
@@ -583,8 +585,8 @@ export default function FoodAnalysis() {
                         <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900">
                           <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
                           <div>
-                            <p className="font-bold text-sm sm:text-base">Verified Fresh — Certified Safe for Donation</p>
-                            <p className="text-xs text-emerald-700">Intact epidermal tissue with optimal nutritional freshness.</p>
+                            <p className="font-bold text-sm sm:text-base">Verified Fresh — AI Visual Freshness Assessment</p>
+                            <p className="text-xs text-emerald-700">Intact epidermal tissue with optimal visual freshness (screening aid).</p>
                           </div>
                         </div>
                       )}

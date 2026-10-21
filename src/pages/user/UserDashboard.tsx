@@ -368,11 +368,11 @@ export default function UserDashboard() {
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></div>
               <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                AI Freshness Telemetry & Automated Action Hub
+                AI Food & Waste Intelligence Hub
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Live inspection results dictate whether food is routed for community donation or flagged for food safety enforcement.
+              Live inspection results categorize materials for optimal recycling, community donation, or food safety enforcement.
             </p>
           </div>
 
