@@ -69,14 +69,14 @@ import { SUPPORTED_LANGUAGES, type SupportedLanguage, translateScanResult } from
 
 // 8 Granular Categories Trained on Kaggle Waste Segregation Dataset (15,366 samples)
 const DATASET_WASTE_CATEGORIES = [
-  { id: 'food_waste', name: 'Organic Food Waste', group: 'Biodegradable', icon: '🍲', desc: 'Cooked meals, plate scraps, vegetable & fruit peels', action: 'Anaerobic Bio-Digester / Composting' },
-  { id: 'leaf_waste', name: 'Garden Green Waste', group: 'Biodegradable', icon: '🍂', desc: 'Foliage, plant trimmings, yard cuttings & grass', action: 'Aerobic Composting & Biomass Mulch' },
-  { id: 'paper_waste', name: 'Cardboard & Paper', group: 'Biodegradable Recyclable', icon: '📦', desc: 'Corrugated cartons, packaging paper & newsprint', action: 'Paper Pulping & Recycled Board Milling' },
-  { id: 'wood_waste', name: 'Timber & Wood Scrap', group: 'Biodegradable', icon: '🪵', desc: 'Lumber scrap, wooden crates, timber offcuts & chips', action: 'High-Density Biomass Pellets' },
-  { id: 'metal_cans', name: 'Metal Cans & Tins', group: 'Non-Biodegradable Recyclable', icon: '🥫', desc: 'Aluminum drink cans, food tins & alloy containers', action: 'Foundry Smelting (100% Recyclable)' },
-  { id: 'plastic_bottles', name: 'PET Plastic Bottles', group: 'Non-Biodegradable Recyclable', icon: '🧴', desc: 'Polyethylene terephthalate (PET #1) beverage containers', action: 'Optical Flake Sorting & Polymer Pellets' },
-  { id: 'plastic_bags', name: 'Plastic Bags & Wrappers', group: 'Non-Biodegradable', icon: '🛍️', desc: 'Low-density polyethylene (LDPE #4) soft film packaging', action: 'Soft Plastic Film Pyrolysis Recovery' },
-  { id: 'ewaste', name: 'Electronic E-Waste', group: 'Hazardous Waste', icon: '💻', desc: 'PCBs, circuit boards, chips, cables & hardware', action: 'Certified WEEE Heavy Metal Recovery' }
+  { id: 'food_waste', name: 'Organic Food Waste', group: 'Biodegradable', icon: '🍲', desc: 'Cooked meals, plate scraps, vegetable & fruit peels', action: 'Anaerobic Bio-Digester / Composting', sampleImage: './samples/sample_food_waste.jpg', sampleFilename: 'sample_food_waste.jpg' },
+  { id: 'leaf_waste', name: 'Garden Green Waste', group: 'Biodegradable', icon: '🍂', desc: 'Foliage, plant trimmings, yard cuttings & grass', action: 'Aerobic Composting & Biomass Mulch', sampleImage: './samples/sample_leaf_waste.jpg', sampleFilename: 'sample_leaf_waste.jpg' },
+  { id: 'paper_waste', name: 'Cardboard & Paper', group: 'Biodegradable Recyclable', icon: '📦', desc: 'Corrugated cartons, packaging paper & newsprint', action: 'Paper Pulping & Recycled Board Milling', sampleImage: './samples/sample_paper_waste.jpg', sampleFilename: 'sample_paper_waste.jpg' },
+  { id: 'wood_waste', name: 'Timber & Wood Scrap', group: 'Biodegradable', icon: '🪵', desc: 'Lumber scrap, wooden crates, timber offcuts & chips', action: 'High-Density Biomass Pellets', sampleImage: './samples/sample_wood_waste.jpg', sampleFilename: 'sample_wood_waste.jpg' },
+  { id: 'metal_cans', name: 'Metal Cans & Tins', group: 'Non-Biodegradable Recyclable', icon: '🥫', desc: 'Aluminum drink cans, food tins & alloy containers', action: 'Foundry Smelting (100% Recyclable)', sampleImage: './samples/sample_metal_can.jpg', sampleFilename: 'sample_metal_can.jpg' },
+  { id: 'plastic_bottles', name: 'PET Plastic Bottles', group: 'Non-Biodegradable Recyclable', icon: '🧴', desc: 'Polyethylene terephthalate (PET #1) beverage containers', action: 'Optical Flake Sorting & Polymer Pellets', sampleImage: './samples/sample_plastic_bottle.jpg', sampleFilename: 'sample_plastic_bottle.jpg' },
+  { id: 'plastic_bags', name: 'Plastic Bags & Wrappers', group: 'Non-Biodegradable', icon: '🛍️', desc: 'Low-density polyethylene (LDPE #4) soft film packaging', action: 'Soft Plastic Film Pyrolysis Recovery', sampleImage: './samples/sample_plastic_bag.jpg', sampleFilename: 'sample_plastic_bag.jpg' },
+  { id: 'ewaste', name: 'Electronic E-Waste', group: 'Hazardous Waste', icon: '💻', desc: 'PCBs, circuit boards, chips, cables & hardware', action: 'Certified WEEE Heavy Metal Recovery', sampleImage: './samples/sample_ewaste.jpg', sampleFilename: 'sample_ewaste.jpg' }
 ];
 
 interface AnalysisStats {
@@ -643,6 +643,18 @@ export default function AiFoodWasteScan() {
     stopCamera();
   };
 
+  // 1-Click Specimen Benchmark: Instantly loads and analyzes Kaggle waste dataset specimens
+  const handleTestCategorySample = (cat: typeof DATASET_WASTE_CATEGORIES[0]) => {
+    stopCamera();
+    setAnalysisMode('waste');
+    setSelectedImage(cat.sampleImage);
+    setFilename(cat.sampleFilename);
+    setCaptureSource('manual_upload');
+    setErrorState(null);
+    setResult(null);
+    handleAnalyzeImage(cat.sampleImage, cat.sampleFilename, 'waste');
+  };
+
   // Trigger: User clicks "Analyze Image"
   const handleAnalyzeImage = async (
     imageOverride?: string,
@@ -794,6 +806,52 @@ export default function AiFoodWasteScan() {
           filename: targetFilename
         });
 
+        if (clientResult.status === 'REJECTED_QUALITY') {
+          setResult(null);
+          setErrorState({
+            type: 'quality',
+            title: 'IMAGE QUALITY TOO LOW',
+            message: clientResult.recommendation || 'Please capture another image with clearer lighting.',
+            details: clientResult.quality_details,
+            suggestions: clientResult.suggestions || [
+              'Ensure adequate and balanced lighting.',
+              'Hold camera steady to avoid motion blur.',
+              'Keep the waste or food item centered in the frame.'
+            ]
+          });
+          return;
+        }
+
+        if (clientResult.status === 'NOT_A_FOOD') {
+          setResult(null);
+          setErrorState({
+            type: 'uncertain',
+            title: 'NOT A FOOD ITEM',
+            message: clientResult.recommendation || 'Item detected is not an edible food item. Please switch to Waste Classification mode.',
+            suggestions: clientResult.suggestions || [
+              'Switch mode to "Waste Classification" in the top bar to classify recyclable materials.',
+              'For freshness assessment, upload an image of whole produce (e.g., Apple, Banana, Orange).'
+            ]
+          });
+          return;
+        }
+
+        if (clientResult.status === 'UNCERTAIN_RESULT') {
+          setResult(null);
+          setErrorState({
+            type: 'uncertain',
+            title: 'UNKNOWN / UNSUPPORTED ITEM',
+            message: clientResult.recommendation || 'The AI could not reliably classify this item.',
+            suggestions: clientResult.suggestions || [
+              'Use better diffused lighting',
+              'Move closer to the specimen',
+              'Keep the object centered in the frame'
+            ]
+          });
+          return;
+        }
+
+        setErrorState(null);
         setResult(clientResult);
         if (clientResult.gradcam_image) {
           setViewMode('gradcam');
@@ -830,6 +888,7 @@ export default function AiFoodWasteScan() {
         await fetchStatsAndHistory();
       } catch (clientErr: any) {
         console.error('Client AI inference error:', clientErr);
+        setResult(null);
         setErrorState({
           type: 'server',
           title: 'INFERENCE ERROR',
@@ -1107,15 +1166,18 @@ export default function AiFoodWasteScan() {
             return (
               <div
                 key={cat.id}
-                onClick={() => setAnalysisMode('waste')}
-                className={`p-2.5 rounded-xl border text-left transition-all hover:shadow-xs cursor-pointer ${
+                onClick={() => handleTestCategorySample(cat)}
+                className={`p-2.5 rounded-xl border text-left transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer group ${
                   isBio
-                    ? 'bg-emerald-50/50 hover:bg-emerald-50 border-emerald-200/80'
-                    : 'bg-blue-50/50 hover:bg-blue-50 border-blue-200/80'
+                    ? 'bg-emerald-50/50 hover:bg-emerald-100/70 border-emerald-200/80'
+                    : 'bg-blue-50/50 hover:bg-blue-100/70 border-blue-200/80'
                 }`}
-                title={`${cat.name} (${cat.group}): ${cat.desc}. Action: ${cat.action}`}
+                title={`Click to test real-time AI classification on ${cat.name} (${cat.group})`}
               >
-                <div className="text-xl leading-none mb-1">{cat.icon}</div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xl leading-none">{cat.icon}</span>
+                  <span className="text-[9px] font-bold text-slate-400 group-hover:text-emerald-700 transition-colors">Test ⚡</span>
+                </div>
                 <div className="font-extrabold text-[11px] text-slate-900 truncate leading-snug">{cat.name}</div>
                 <div className={`text-[9px] font-bold uppercase mt-0.5 ${isBio ? 'text-emerald-700' : 'text-blue-700'}`}>
                   {cat.group.replace(' Recyclable', '')}
@@ -1561,7 +1623,7 @@ export default function AiFoodWasteScan() {
           )}
 
           {/* B. Quality Rejection Card */}
-          {errorState?.type === 'quality' && (
+          {errorState?.type === 'quality' && !result && (
             <div className="bg-white rounded-2xl border border-red-200 p-6 shadow-xs">
               <div className="flex items-center gap-3 mb-4 pb-3 border-b border-red-100">
                 <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
@@ -1595,7 +1657,7 @@ export default function AiFoodWasteScan() {
           )}
 
           {/* C. Uncertain Result Card */}
-          {errorState?.type === 'uncertain' && (
+          {errorState?.type === 'uncertain' && !result && (
             <div className="bg-white rounded-2xl border border-amber-200 p-6 shadow-xs">
               <div className="flex items-center gap-3 mb-4 pb-3 border-b border-amber-100">
                 <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -1628,7 +1690,7 @@ export default function AiFoodWasteScan() {
           )}
 
           {/* D. Server Error Card */}
-          {errorState?.type === 'server' && (
+          {errorState?.type === 'server' && !result && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
               <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
                 <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">

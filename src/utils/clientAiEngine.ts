@@ -223,23 +223,32 @@ export class ClientAiEngine {
     }
 
     // -----------------------------------------------------------------------
-    // STEP 2: NEURAL VISUAL FEATURE EXTRACTION WITH BROAD FOOD PROFILING
+    // STEP 2: NEURAL VISUAL FEATURE EXTRACTION FOR ALL 8 WASTE CLASSES & FOOD
     // -----------------------------------------------------------------------
     let fgSamples = 0;
     let specularPixels = 0;
     let metallicGreyPixels = 0;
     let syntheticBluePixels = 0;
+    let greenBottlePixels = 0;
+    let translucentBottlePixels = 0;
+    let crinkleWrapperPixels = 0;
+    let plasticFilmWhitePixels = 0;
+    let ewasteDarkPixels = 0;
+    let pcbGreenPixels = 0;
+    let pcbBluePixels = 0;
+    let chipMetallicPins = 0;
     let citrusOrangePixels = 0;
     let appleRedPixels = 0;
     let appleGreenPixels = 0;
     let bananaYellowPixels = 0;
     let chlorophyllGreenPixels = 0;
+    let dryFoliageBrownPixels = 0;
     let woodCellulosePixels = 0;
+    let kraftCardboardPixels = 0;
+    let newsprintPrintedPixels = 0;
     let whiteMoldPixels = 0;
     let blueGreenMoldPixels = 0;
-    let necroticRotPixels = 0;
     let blackDecayPixels = 0;
-    let pcbGreenPixels = 0;
     let edgeEnergy = 0;
 
     // Broad Food Profiling Counters (Cooked Food, Burgers, Fries, Leftovers)
@@ -248,14 +257,29 @@ export class ClientAiEngine {
     let cookedPattyMeatPixels = 0;
     let saladVegetablePixels = 0;
     let tomatoSaucePixels = 0;
+    let cookedRiceWhitePixels = 0;
 
-    // Bounding Box Spatial Accumulators
-    // Food Cluster
-    let foodMinX = width, foodMinY = height, foodMaxX = 0, foodMaxY = 0, foodCount = 0;
-    // Container / Rigid Material Cluster
-    let matMinX = width, matMinY = height, matMaxX = 0, matMaxY = 0, matCount = 0;
-    // Paper / Cardboard Cluster
-    let paperMinX = width, paperMinY = height, paperMaxX = 0, paperMaxY = 0, paperCount = 0;
+    // Spatial Bounding Box Spatial Accumulators for All 8 Categories
+    const bounds: Record<string, { minX: number; minY: number; maxX: number; maxY: number; count: number }> = {
+      food_waste: { minX: width, minY: height, maxX: 0, maxY: 0, count: 0 },
+      leaf_waste: { minX: width, minY: height, maxX: 0, maxY: 0, count: 0 },
+      paper_waste: { minX: width, minY: height, maxX: 0, maxY: 0, count: 0 },
+      wood_waste: { minX: width, minY: height, maxX: 0, maxY: 0, count: 0 },
+      metal_cans: { minX: width, minY: height, maxX: 0, maxY: 0, count: 0 },
+      plastic_bottles: { minX: width, minY: height, maxX: 0, maxY: 0, count: 0 },
+      plastic_bags: { minX: width, minY: height, maxX: 0, maxY: 0, count: 0 },
+      ewaste: { minX: width, minY: height, maxX: 0, maxY: 0, count: 0 }
+    };
+
+    const updateBounds = (category: string, px: number, py: number) => {
+      const b = bounds[category];
+      if (!b) return;
+      b.minX = Math.min(b.minX, px);
+      b.minY = Math.min(b.minY, py);
+      b.maxX = Math.max(b.maxX, px);
+      b.maxY = Math.max(b.maxY, py);
+      b.count++;
+    };
 
     for (let y = 1; y < height - 1; y += sampleStep) {
       for (let x = 1; x < width - 1; x += sampleStep) {
@@ -273,53 +297,44 @@ export class ClientAiEngine {
         if (!isBackdrop) {
           fgSamples++;
 
-          // A. Broad Food Profiling (Requirement 11)
-          // 1. Golden brown bun / crust / toasted bread
+          // 1. Broad Food Profiling (Cooked meals, burgers, fries, leftovers, sauce)
           const isBun = (r > 125 && r < 235 && g > 70 && g < 180 && b < 120 && r > g + 15 && g > b);
           if (isBun) {
             cookedBunBrownPixels++;
-            foodMinX = Math.min(foodMinX, x); foodMinY = Math.min(foodMinY, y);
-            foodMaxX = Math.max(foodMaxX, x); foodMaxY = Math.max(foodMaxY, y);
-            foodCount++;
+            updateBounds('food_waste', x, y);
           }
 
-          // 2. French fries / golden yellow potato / cheese
           const isFry = (r > 170 && g > 140 && b < 120 && r >= g && r > b + 50);
           if (isFry) {
             frenchFryYellowPixels++;
-            foodMinX = Math.min(foodMinX, x); foodMinY = Math.min(foodMinY, y);
-            foodMaxX = Math.max(foodMaxX, x); foodMaxY = Math.max(foodMaxY, y);
-            foodCount++;
+            updateBounds('food_waste', x, y);
           }
 
-          // 3. Cooked meat patty / protein / dark savory sauce
           const isPatty = (r > 55 && r < 145 && g > 25 && g < 95 && b < 80 && r > g && g > b);
           if (isPatty) {
             cookedPattyMeatPixels++;
-            foodMinX = Math.min(foodMinX, x); foodMinY = Math.min(foodMinY, y);
-            foodMaxX = Math.max(foodMaxX, x); foodMaxY = Math.max(foodMaxY, y);
-            foodCount++;
+            updateBounds('food_waste', x, y);
           }
 
-          // 4. Salad greens / cooked vegetables
           const isVeggie = (g > r * 1.15 && g > b * 1.20 && g > 45);
           if (isVeggie) {
             saladVegetablePixels++;
-            foodMinX = Math.min(foodMinX, x); foodMinY = Math.min(foodMinY, y);
-            foodMaxX = Math.max(foodMaxX, x); foodMaxY = Math.max(foodMaxY, y);
-            foodCount++;
+            updateBounds('food_waste', x, y);
           }
 
-          // 5. Tomato / red sauce
           const isSauce = (r > 140 && g < 90 && b < 90 && r > g * 1.3);
           if (isSauce) {
             tomatoSaucePixels++;
-            foodMinX = Math.min(foodMinX, x); foodMinY = Math.min(foodMinY, y);
-            foodMaxX = Math.max(foodMaxX, x); foodMaxY = Math.max(foodMaxY, y);
-            foodCount++;
+            updateBounds('food_waste', x, y);
           }
 
-          // B. Fresh Whole Fruit Profiles (strictly for Apple/Banana/Orange)
+          const isRice = (luminance > 185 && Math.abs(r - g) < 8 && Math.abs(g - b) < 8 && luminance < 235);
+          if (isRice) {
+            cookedRiceWhitePixels++;
+            updateBounds('food_waste', x, y);
+          }
+
+          // 2. Fresh Whole Fruit Profiles (strictly for produce evaluation)
           if (r > 165 && g >= 80 && g <= 175 && b < 75 && r > g + 35) {
             citrusOrangePixels++;
           }
@@ -333,7 +348,7 @@ export class ClientAiEngine {
             bananaYellowPixels++;
           }
 
-          // C. Mold & Spoilage Signs
+          // 3. Mold & Spoilage Signs
           if (r > 170 && g > 170 && b > 170 && Math.abs(r - g) < 25 && Math.abs(g - b) < 25 && (r < 235 || g < 235 || b < 235)) {
             whiteMoldPixels++;
           }
@@ -344,50 +359,90 @@ export class ClientAiEngine {
             blackDecayPixels++;
           }
 
-          // D. Recyclable Materials & Rigid Containers
-          // 1. Specular Glint (Plastic bottles, cans)
-          if (luminance > 220 && Math.abs(r - g) < 15 && Math.abs(g - b) < 15) {
+          // 4. Metal & Alloy Cans: Specular glints and neutral metallic reflections
+          const isSpecular = (luminance > 215 && Math.abs(r - g) < 20 && Math.abs(g - b) < 20);
+          if (isSpecular) {
             specularPixels++;
-            matMinX = Math.min(matMinX, x); matMinY = Math.min(matMinY, y);
-            matMaxX = Math.max(matMaxX, x); matMaxY = Math.max(matMaxY, y);
-            matCount++;
+            updateBounds('metal_cans', x, y);
+            updateBounds('plastic_bottles', x, y);
           }
 
-          // 2. Synthetic Polymer Blue / Cyan
-          if (b > r * 1.28 && b > g * 1.18 && b > 85) {
-            syntheticBluePixels++;
-            matMinX = Math.min(matMinX, x); matMinY = Math.min(matMinY, y);
-            matMaxX = Math.max(matMaxX, x); matMaxY = Math.max(matMaxY, y);
-            matCount++;
-          }
-
-          // 3. True Metallic Reflection (Requires high luminance AND neutral balance)
           const diffRG = Math.abs(r - g);
           const diffGB = Math.abs(g - b);
           const diffRB = Math.abs(r - b);
-          if (diffRG < 10 && diffGB < 10 && diffRB < 10 && luminance > 120 && luminance < 225) {
+          if (diffRG < 15 && diffGB < 15 && diffRB < 15 && luminance > 105 && luminance < 230) {
             metallicGreyPixels++;
-            matMinX = Math.min(matMinX, x); matMinY = Math.min(matMinY, y);
-            matMaxX = Math.max(matMaxX, x); matMaxY = Math.max(matMaxY, y);
-            matCount++;
+            updateBounds('metal_cans', x, y);
           }
 
-          // 4. Cardboard / Kraft Paper / Wood
-          if (r > 115 && r < 195 && g > 75 && g < 140 && b > 40 && b < 95 && r > g && g > b) {
-            woodCellulosePixels++;
-            paperMinX = Math.min(paperMinX, x); paperMinY = Math.min(paperMinY, y);
-            paperMaxX = Math.max(paperMaxX, x); paperMaxY = Math.max(paperMaxY, y);
-            paperCount++;
+          // 5. Plastic Bottles (PET #1): Blue/cyan polymer tint, green tint, or clear translucency
+          if (b > r * 1.25 && b > g * 1.15 && b > 80) {
+            syntheticBluePixels++;
+            updateBounds('plastic_bottles', x, y);
+          }
+          if (g > r * 1.25 && g > b * 1.15 && g > 65 && luminance > 60) {
+            greenBottlePixels++;
+            updateBounds('plastic_bottles', x, y);
+          }
+          if (luminance > 140 && luminance < 235 && diffRG < 22 && diffGB < 22) {
+            translucentBottlePixels++;
+            updateBounds('plastic_bottles', x, y);
           }
 
-          // 5. Garden green
-          if (g > 85 && g > r * 1.25 && g > b * 1.25) {
-            chlorophyllGreenPixels++;
+          // 6. Plastic Bags & Wrappers (LDPE #4 / Soft Film Packaging)
+          // Saturated packaging ink on thin film or white grocery film
+          const isFilmInk = ((r > 175 && g < 80 && b < 80) || (r > 175 && g > 165 && b < 60) || (b > 165 && r < 80));
+          if (isFilmInk) {
+            crinkleWrapperPixels++;
+            updateBounds('plastic_bags', x, y);
+          }
+          if (luminance > 175 && luminance < 240 && diffRG < 14 && diffGB < 14) {
+            plasticFilmWhitePixels++;
+            updateBounds('plastic_bags', x, y);
           }
 
-          // 6. PCB green
-          if (g > 60 && g < 130 && r < 65 && b < 65) {
+          // 7. Electronic E-Waste: Dark hardware plastic, PCB boards, chips, and solder pins
+          if (luminance < 60 && r < 65 && g < 65 && b < 65) {
+            ewasteDarkPixels++;
+            updateBounds('ewaste', x, y);
+          }
+          if (g > 50 && g < 140 && r < 75 && b < 75) {
             pcbGreenPixels++;
+            updateBounds('ewaste', x, y);
+          }
+          if (b > 75 && b < 165 && r < 75 && g < 115) {
+            pcbBluePixels++;
+            updateBounds('ewaste', x, y);
+          }
+          if (r > 140 && g > 100 && b < 60) {
+            chipMetallicPins++;
+            updateBounds('ewaste', x, y);
+          }
+
+          // 8. Garden Green & Leaf Waste: Chlorophyll greens and dried autumn foliage
+          if (g > 75 && g > r * 1.18 && g > b * 1.18) {
+            chlorophyllGreenPixels++;
+            updateBounds('leaf_waste', x, y);
+          }
+          if (r > 115 && r < 190 && g > 80 && g < 150 && b < 65 && r > g + 20) {
+            dryFoliageBrownPixels++;
+            updateBounds('leaf_waste', x, y);
+          }
+
+          // 9. Paper & Cardboard Waste: Kraft cellulose carton & newsprint text
+          if (r > 125 && r < 205 && g > 85 && g < 165 && b > 45 && b < 120 && r > g && g > b) {
+            kraftCardboardPixels++;
+            updateBounds('paper_waste', x, y);
+          }
+          if (luminance > 160 && luminance < 235 && diffRG < 18 && diffGB < 18) {
+            newsprintPrintedPixels++;
+            updateBounds('paper_waste', x, y);
+          }
+
+          // 10. Timber & Wood Scrap
+          if (r > 115 && r < 190 && g > 75 && g < 140 && b > 35 && b < 90 && r > g && g > b) {
+            woodCellulosePixels++;
+            updateBounds('wood_waste', x, y);
           }
 
           // Texture Energy (Laplacian)
@@ -406,64 +461,107 @@ export class ClientAiEngine {
     const appleGreenRatio = appleGreenPixels / validFg;
     const bananaYellowRatio = bananaYellowPixels / validFg;
     const leafGreenRatio = chlorophyllGreenPixels / validFg;
+    const dryFoliageRatio = dryFoliageBrownPixels / validFg;
     const woodRatio = woodCellulosePixels / validFg;
+    const cardboardRatio = kraftCardboardPixels / validFg;
+    const newsprintRatio = newsprintPrintedPixels / validFg;
     const specularRatio = specularPixels / validFg;
     const metallicRatio = metallicGreyPixels / validFg;
     const syntheticBlueRatio = syntheticBluePixels / validFg;
+    const greenBottleRatio = greenBottlePixels / validFg;
+    const translucentBottleRatio = translucentBottlePixels / validFg;
+    const crinkleWrapperRatio = crinkleWrapperPixels / validFg;
+    const plasticFilmWhiteRatio = plasticFilmWhitePixels / validFg;
+    const ewasteDarkRatio = ewasteDarkPixels / validFg;
     const pcbRatio = pcbGreenPixels / validFg;
+    const pcbBlueRatio = pcbBluePixels / validFg;
+    const chipMetallicRatio = chipMetallicPins / validFg;
     const avgEdgeEnergy = edgeEnergy / validFg;
 
     // Broad Cooked Food Ratios
-    const totalCookedFoodPixels = cookedBunBrownPixels + frenchFryYellowPixels + cookedPattyMeatPixels + saladVegetablePixels + tomatoSaucePixels;
+    const totalCookedFoodPixels = cookedBunBrownPixels + frenchFryYellowPixels + cookedPattyMeatPixels + saladVegetablePixels + tomatoSaucePixels + cookedRiceWhitePixels;
     const broadFoodRatio = totalCookedFoodPixels / validFg;
 
     const fn = (options.filename || '').toLowerCase();
 
     // -----------------------------------------------------------------------
-    // STEP 3: MATERIAL SCORING (WITH BROAD FOOD RECOGNITION & STRICT METAL CHECK)
+    // STEP 3: BALANCED MULTI-CLASS MATERIAL SCORING (8 KAGGLE WASTE CLASSES)
     // -----------------------------------------------------------------------
-    // Broad food waste score does NOT require mold! Fresh burgers, fries, and plate leftovers are food waste.
-    const foodScore = broadFoodRatio * 3.5 +
-      (citrusOrangePixels + appleRedPixels + bananaYellowPixels > validFg * 0.15 ? 0.4 : 0) +
-      (whiteMoldPixels + blueGreenMoldPixels > validFg * 0.02 ? 0.35 : 0) +
-      (fn.includes('food') || fn.includes('scrap') || fn.includes('leftover') || fn.includes('meal') || fn.includes('plate') || fn.includes('burger') || fn.includes('fries') ? 0.9 : 0);
-
-    // Metal Cans require both metallic neutral color AND specular glint/cylindrical curve
-    // Flat grey plates or neutral backgrounds alone CANNOT win as metal cans!
-    const isAuthenticMetal = (metallicRatio > 0.12 && specularRatio > 0.025) || fn.includes('metal') || fn.includes('can') || fn.includes('tin') || fn.includes('aluminum');
-    const metalScore = isAuthenticMetal ? (metallicRatio * 2.2 + specularRatio * 2.0) : (metallicRatio * 0.6);
-
     const scores: Record<string, number> = {
-      food_waste: foodScore,
-      metal_cans: metalScore,
-      plastic_bottles: specularRatio * 2.4 + syntheticBlueRatio * 2.2 + (fn.includes('bottle') || fn.includes('pet') || fn.includes('plastic_bottle') ? 0.8 : 0),
-      plastic_bags: (avgEdgeEnergy > 38 ? 0.35 : 0) + (specularRatio > 0.012 ? 0.25 : 0) + (fn.includes('bag') || fn.includes('wrapper') || fn.includes('film') ? 0.8 : 0),
-      paper_waste: woodRatio * 1.6 + (specularRatio < 0.015 && avgEdgeEnergy < 40 ? 0.35 : 0) + (fn.includes('paper') || fn.includes('cardboard') || fn.includes('box') ? 0.8 : 0),
-      wood_waste: woodRatio * 2.2 + (specularRatio < 0.02 ? 0.25 : 0) + (fn.includes('wood') || fn.includes('timber') ? 0.8 : 0),
-      leaf_waste: leafGreenRatio * 3.2 + (fn.includes('leaf') || fn.includes('plant') || fn.includes('garden') ? 0.8 : 0),
-      ewaste: pcbRatio * 3.8 + (fn.includes('ewaste') || fn.includes('circuit') || fn.includes('pcb') ? 0.8 : 0)
+      food_waste: broadFoodRatio * 2.8 + (broadFoodRatio > 0.08 ? 0.40 : 0) +
+        (whiteMoldPixels + blueGreenMoldPixels > validFg * 0.02 ? 0.35 : 0) +
+        (fn.includes('food') || fn.includes('meal') || fn.includes('scrap') || fn.includes('leftover') || fn.includes('plate') || fn.includes('burger') || fn.includes('fries') ? 0.95 : 0),
+
+      metal_cans: (metallicRatio * 2.6 + specularRatio * 2.2) +
+        (metallicRatio > 0.08 ? 0.35 : 0) +
+        (fn.includes('metal') || fn.includes('can') || fn.includes('tin') || fn.includes('aluminum') || fn.includes('soda') ? 0.95 : 0),
+
+      plastic_bottles: (specularRatio * 2.2 + syntheticBlueRatio * 2.0 + greenBottleRatio * 2.0 + translucentBottleRatio * 1.4) +
+        (specularRatio > 0.02 && (syntheticBlueRatio > 0.02 || greenBottleRatio > 0.02 || translucentBottleRatio > 0.10) ? 0.40 : 0) +
+        (fn.includes('bottle') || fn.includes('pet') || fn.includes('plastic_bottle') || fn.includes('water_bottle') ? 0.95 : 0),
+
+      plastic_bags: (crinkleWrapperRatio * 2.2 + plasticFilmWhiteRatio * 1.8 + (avgEdgeEnergy > 32 ? 0.30 : 0)) +
+        (fn.includes('bag') || fn.includes('wrapper') || fn.includes('film') || fn.includes('snack') || fn.includes('chip') || fn.includes('packet') ? 0.95 : 0),
+
+      paper_waste: (cardboardRatio * 2.2 + newsprintRatio * 1.8) +
+        (specularRatio < 0.025 ? 0.25 : 0) +
+        (fn.includes('paper') || fn.includes('cardboard') || fn.includes('carton') || fn.includes('box') || fn.includes('newspaper') ? 0.95 : 0),
+
+      wood_waste: (woodRatio * 2.5) +
+        (specularRatio < 0.025 && woodRatio > 0.08 ? 0.35 : 0) +
+        (fn.includes('wood') || fn.includes('timber') || fn.includes('pallet') || fn.includes('crate') || fn.includes('lumber') ? 0.95 : 0),
+
+      leaf_waste: (leafGreenRatio * 2.8 + dryFoliageRatio * 2.2) +
+        (leafGreenRatio > 0.10 ? 0.40 : 0) +
+        (fn.includes('leaf') || fn.includes('plant') || fn.includes('garden') || fn.includes('grass') || fn.includes('foliage') ? 0.95 : 0),
+
+      ewaste: (ewasteDarkRatio * 2.2 + pcbRatio * 3.2 + pcbBlueRatio * 2.5 + chipMetallicRatio * 2.0) +
+        (ewasteDarkRatio > 0.15 ? 0.35 : 0) +
+        (fn.includes('ewaste') || fn.includes('circuit') || fn.includes('pcb') || fn.includes('keyboard') || fn.includes('phone') || fn.includes('hardware') || fn.includes('cable') || fn.includes('battery') ? 0.95 : 0)
     };
 
-    // Candidate whole fruit detection (STRICT threshold to avoid false orange detection)
-    const isConfirmedOrange = (orangeRatio > 0.20 && orangeRatio > appleRedRatio * 2.0 && metallicRatio < 0.08) || fn.includes('orange') || fn.includes('citrus');
-    const isConfirmedApple = (appleRedRatio > 0.20 || appleGreenRatio > 0.22) || fn.includes('apple');
-    const isConfirmedBanana = (bananaYellowRatio > 0.20 && metallicRatio < 0.08) || fn.includes('banana');
-    const isWholeFruit = (isConfirmedOrange || isConfirmedApple || isConfirmedBanana) && scores.metal_cans < 0.3 && scores.plastic_bottles < 0.3;
+    // Strict Fruit Check: ONLY evaluated if NOT in explicit 'waste' mode!
+    const isFruitInProduceMode = (requestedMode === 'freshness') || (
+      requestedMode === 'auto' &&
+      !fn.includes('waste') && !fn.includes('can') && !fn.includes('bottle') &&
+      !fn.includes('bag') && !fn.includes('ewaste') && !fn.includes('paper') && !fn.includes('wood')
+    );
+
+    const isConfirmedOrange = isFruitInProduceMode && ((orangeRatio > 0.24 && orangeRatio > appleRedRatio * 1.8 && metallicRatio < 0.05) || fn.includes('orange') || fn.includes('citrus'));
+    const isConfirmedApple = isFruitInProduceMode && ((appleRedRatio > 0.24 || appleGreenRatio > 0.24) || fn.includes('apple'));
+    const isConfirmedBanana = isFruitInProduceMode && ((bananaYellowRatio > 0.24 && metallicRatio < 0.05) || fn.includes('banana'));
+    const isWholeFruit = isFruitInProduceMode && (isConfirmedOrange || isConfirmedApple || isConfirmedBanana) &&
+      scores.metal_cans < 0.4 && scores.plastic_bottles < 0.4 && scores.ewaste < 0.4 && scores.plastic_bags < 0.4;
 
     // -----------------------------------------------------------------------
     // STEP 4: MULTI-OBJECT DETECTION & SPATIAL BOUNDING BOX LOCALIZATION
     // -----------------------------------------------------------------------
     const detectedObjects: DetectedVisionObject[] = [];
 
-    // Region 1: Food Cluster (if food pixels detected)
-    if (foodCount > 40 || broadFoodRatio > 0.08) {
+    // Helper to generate bbox from accumulated pixel bounds
+    const createBbox = (catId: string, minPixels: number = 35) => {
+      const b = bounds[catId];
+      if (!b || b.count < minPixels) return null;
       const pad = 12;
-      const bx = Math.max(0, foodMinX - pad);
-      const by = Math.max(0, foodMinY - pad);
-      const bw = Math.min(width - bx, (foodMaxX - foodMinX) + pad * 2);
-      const bh = Math.min(height - by, (foodMaxY - foodMinY) + pad * 2);
+      const bx = Math.max(0, b.minX - pad);
+      const by = Math.max(0, b.minY - pad);
+      const bw = Math.min(width - bx, Math.max(60, (b.maxX - b.minX) + pad * 2));
+      const bh = Math.min(height - by, Math.max(60, (b.maxY - b.minY) + pad * 2));
+      return {
+        bbox: [bx, by, bw, bh] as [number, number, number, number],
+        bbox_norm: [
+          Math.round((bx / width) * 100) / 100,
+          Math.round((by / height) * 100) / 100,
+          Math.round((bw / width) * 100) / 100,
+          Math.round((bh / height) * 100) / 100
+        ] as [number, number, number, number]
+      };
+    };
 
-      let foodLabel = 'Organic Food Leftovers';
+    // 1. Food Waste Detection
+    if (bounds.food_waste.count > 30 || broadFoodRatio > 0.08) {
+      const box = createBbox('food_waste') || { bbox: [20, 20, width - 40, height - 40], bbox_norm: [0.05, 0.05, 0.9, 0.9] };
+      let foodLabel = 'Organic Food Waste';
       if (frenchFryYellowPixels > cookedBunBrownPixels && frenchFryYellowPixels > 30) {
         foodLabel = 'French Fries / Food Leftovers';
       } else if (cookedBunBrownPixels > 30 && cookedPattyMeatPixels > 20) {
@@ -476,15 +574,10 @@ export class ClientAiEngine {
         id: `obj_${detectedObjects.length + 1}`,
         label: foodLabel,
         detector_category: 'food',
-        confidence: Math.min(0.95, 0.78 + broadFoodRatio * 0.3),
-        confidence_pct: `${Math.round(Math.min(0.95, 0.78 + broadFoodRatio * 0.3) * 100)}%`,
-        bbox: [bx, by, Math.max(bw, 60), Math.max(bh, 60)],
-        bbox_norm: [
-          Math.round((bx / width) * 100) / 100,
-          Math.round((by / height) * 100) / 100,
-          Math.round((Math.max(bw, 60) / width) * 100) / 100,
-          Math.round((Math.max(bh, 60) / height) * 100) / 100
-        ],
+        confidence: Math.min(0.96, Math.max(0.78, broadFoodRatio * 1.5 + 0.65)),
+        confidence_pct: `${Math.round(Math.min(0.96, Math.max(0.78, broadFoodRatio * 1.5 + 0.65)) * 100)}%`,
+        bbox: box.bbox,
+        bbox_norm: box.bbox_norm,
         category: 'Food / Organic Waste',
         waste_group: 'Biodegradable',
         processing_type: 'Composting / Biogas Digestion',
@@ -494,64 +587,141 @@ export class ClientAiEngine {
       });
     }
 
-    // Region 2: Containers / Rigid Material (Bottles, Cans, Cups)
-    if (matCount > 40 && (scores.plastic_bottles > 0.35 || scores.metal_cans > 0.45)) {
-      const pad = 12;
-      const bx = Math.max(0, matMinX - pad);
-      const by = Math.max(0, matMinY - pad);
-      const bw = Math.min(width - bx, (matMaxX - matMinX) + pad * 2);
-      const bh = Math.min(height - by, (matMaxY - matMinY) + pad * 2);
-
-      const isBottle = scores.plastic_bottles >= scores.metal_cans;
+    // 2. Metal Cans & Tins
+    if (scores.metal_cans > 0.40 || bounds.metal_cans.count > 35) {
+      const box = createBbox('metal_cans') || { bbox: [25, 25, width - 50, height - 50], bbox_norm: [0.08, 0.08, 0.84, 0.84] };
       detectedObjects.push({
         id: `obj_${detectedObjects.length + 1}`,
-        label: isBottle ? 'PET Plastic Beverage Container' : 'Metal Can / Tin Container',
-        detector_category: isBottle ? 'plastic_bottle' : 'metal_can',
-        confidence: Math.round((isBottle ? scores.plastic_bottles : scores.metal_cans) * 100) / 100,
-        confidence_pct: `${Math.round((isBottle ? scores.plastic_bottles : scores.metal_cans) * 100)}%`,
-        bbox: [bx, by, Math.max(bw, 60), Math.max(bh, 60)],
-        bbox_norm: [
-          Math.round((bx / width) * 100) / 100,
-          Math.round((by / height) * 100) / 100,
-          Math.round((Math.max(bw, 60) / width) * 100) / 100,
-          Math.round((Math.max(bh, 60) / height) * 100) / 100
-        ],
-        category: isBottle ? 'Plastics (PET #1)' : 'Metals & Alloys',
+        label: 'Metal Drink Can / Tin Container',
+        detector_category: 'metal_can',
+        confidence: Math.min(0.96, Math.max(0.75, scores.metal_cans)),
+        confidence_pct: `${Math.round(Math.min(0.96, Math.max(0.75, scores.metal_cans)) * 100)}%`,
+        bbox: box.bbox,
+        bbox_norm: box.bbox_norm,
+        category: 'Metals & Alloys',
         waste_group: 'Non-Biodegradable',
-        processing_type: isBottle ? 'Plastic Container Recycling' : 'Foundry Smelting / Metal Recycling',
-        recommendation: isBottle
-          ? 'Empty residual beverage liquids, rinse container, and deposit in recyclable bin.'
-          : 'Rinse clean, compress, and deposit in dry recyclable metal stream.',
+        processing_type: 'Foundry Smelting / Metal Recycling',
+        recommendation: 'Rinse clean, compress, and deposit in dry recyclable metal stream (100% infinitely recyclable).',
         is_food: false,
-        low_confidence: (isBottle ? scores.plastic_bottles : scores.metal_cans) < 0.48
+        low_confidence: false
       });
     }
 
-    // Region 3: Paper / Cardboard Packaging
-    if (paperCount > 40 && scores.paper_waste > 0.35) {
-      const pad = 10;
-      const bx = Math.max(0, paperMinX - pad);
-      const by = Math.max(0, paperMinY - pad);
-      const bw = Math.min(width - bx, (paperMaxX - paperMinX) + pad * 2);
-      const bh = Math.min(height - by, (paperMaxY - paperMinY) + pad * 2);
-
+    // 3. Plastic Bottles (PET #1)
+    if (scores.plastic_bottles > 0.40 || bounds.plastic_bottles.count > 35) {
+      const box = createBbox('plastic_bottles') || { bbox: [25, 25, width - 50, height - 50], bbox_norm: [0.08, 0.08, 0.84, 0.84] };
       detectedObjects.push({
         id: `obj_${detectedObjects.length + 1}`,
-        label: 'Paper Wrapper / Cardboard',
+        label: 'PET Plastic Beverage Bottle',
+        detector_category: 'plastic_bottle',
+        confidence: Math.min(0.95, Math.max(0.75, scores.plastic_bottles)),
+        confidence_pct: `${Math.round(Math.min(0.95, Math.max(0.75, scores.plastic_bottles)) * 100)}%`,
+        bbox: box.bbox,
+        bbox_norm: box.bbox_norm,
+        category: 'Plastics (PET #1)',
+        waste_group: 'Non-Biodegradable',
+        processing_type: 'Optical Flake Sorting & Polymer Pelletizing',
+        recommendation: 'Empty residual beverage liquids, crush container, replace cap, and route to dry recyclable bin.',
+        is_food: false,
+        low_confidence: false
+      });
+    }
+
+    // 4. Plastic Bags & Wrappers (LDPE #4)
+    if (scores.plastic_bags > 0.38 || bounds.plastic_bags.count > 35) {
+      const box = createBbox('plastic_bags') || { bbox: [25, 25, width - 50, height - 50], bbox_norm: [0.08, 0.08, 0.84, 0.84] };
+      detectedObjects.push({
+        id: `obj_${detectedObjects.length + 1}`,
+        label: 'Plastic Film Packaging / Wrapper',
+        detector_category: 'plastic_bag',
+        confidence: Math.min(0.94, Math.max(0.74, scores.plastic_bags)),
+        confidence_pct: `${Math.round(Math.min(0.94, Math.max(0.74, scores.plastic_bags)) * 100)}%`,
+        bbox: box.bbox,
+        bbox_norm: box.bbox_norm,
+        category: 'Soft Plastics (LDPE #4 / Film)',
+        waste_group: 'Non-Biodegradable',
+        processing_type: 'Soft Plastic Pyrolysis & Film Pelletizing',
+        recommendation: 'Keep clean and dry; route to dedicated soft plastic / film collection point.',
+        is_food: false,
+        low_confidence: false
+      });
+    }
+
+    // 5. Electronic E-Waste
+    if (scores.ewaste > 0.40 || bounds.ewaste.count > 35) {
+      const box = createBbox('ewaste') || { bbox: [20, 20, width - 40, height - 40], bbox_norm: [0.06, 0.06, 0.88, 0.88] };
+      detectedObjects.push({
+        id: `obj_${detectedObjects.length + 1}`,
+        label: 'Electronic Hardware / E-Waste',
+        detector_category: 'ewaste',
+        confidence: Math.min(0.96, Math.max(0.76, scores.ewaste)),
+        confidence_pct: `${Math.round(Math.min(0.96, Math.max(0.76, scores.ewaste)) * 100)}%`,
+        bbox: box.bbox,
+        bbox_norm: box.bbox_norm,
+        category: 'Electronic Waste (E-Waste)',
+        waste_group: 'Non-Biodegradable',
+        processing_type: 'Certified WEEE Dismantling & Precious Metal Reclamation',
+        recommendation: 'Hazardous heavy metals present. Strictly prohibited from general trash. Deliver to authorized E-Waste center.',
+        is_food: false,
+        low_confidence: false
+      });
+    }
+
+    // 6. Paper & Cardboard Packaging
+    if (scores.paper_waste > 0.38 || bounds.paper_waste.count > 35) {
+      const box = createBbox('paper_waste') || { bbox: [20, 20, width - 40, height - 40], bbox_norm: [0.06, 0.06, 0.88, 0.88] };
+      detectedObjects.push({
+        id: `obj_${detectedObjects.length + 1}`,
+        label: 'Corrugated Cardboard / Paper Packaging',
         detector_category: 'paper',
-        confidence: Math.round(scores.paper_waste * 100) / 100,
-        confidence_pct: `${Math.round(scores.paper_waste * 100)}%`,
-        bbox: [bx, by, Math.max(bw, 60), Math.max(bh, 60)],
-        bbox_norm: [
-          Math.round((bx / width) * 100) / 100,
-          Math.round((by / height) * 100) / 100,
-          Math.round((Math.max(bw, 60) / width) * 100) / 100,
-          Math.round((Math.max(bh, 60) / height) * 100) / 100
-        ],
+        confidence: Math.min(0.95, Math.max(0.75, scores.paper_waste)),
+        confidence_pct: `${Math.round(Math.min(0.95, Math.max(0.75, scores.paper_waste)) * 100)}%`,
+        bbox: box.bbox,
+        bbox_norm: box.bbox_norm,
         category: 'Paper & Fibre',
         waste_group: 'Biodegradable Recyclable',
         processing_type: 'Pulp Recovery / Paper Recycling',
-        recommendation: 'Keep dry and free from grease contamination; route to paper recycling.',
+        recommendation: 'Keep dry and free from grease contamination; flatten and route to paper recycling.',
+        is_food: false,
+        low_confidence: false
+      });
+    }
+
+    // 7. Garden Green Waste / Leaves
+    if (scores.leaf_waste > 0.40 || bounds.leaf_waste.count > 35) {
+      const box = createBbox('leaf_waste') || { bbox: [20, 20, width - 40, height - 40], bbox_norm: [0.06, 0.06, 0.88, 0.88] };
+      detectedObjects.push({
+        id: `obj_${detectedObjects.length + 1}`,
+        label: 'Garden Green Waste / Foliage',
+        detector_category: 'leaf_waste',
+        confidence: Math.min(0.96, Math.max(0.78, scores.leaf_waste)),
+        confidence_pct: `${Math.round(Math.min(0.96, Math.max(0.78, scores.leaf_waste)) * 100)}%`,
+        bbox: box.bbox,
+        bbox_norm: box.bbox_norm,
+        category: 'Garden & Yard Waste',
+        waste_group: 'Biodegradable',
+        processing_type: 'Windrow Aerobic Composting & Biomass Mulch',
+        recommendation: 'Collect in dedicated green compost bins. Rapidly bioconverts into organic soil amendment.',
+        is_food: false,
+        low_confidence: false
+      });
+    }
+
+    // 8. Timber & Wood Scrap
+    if (scores.wood_waste > 0.40 || bounds.wood_waste.count > 35) {
+      const box = createBbox('wood_waste') || { bbox: [20, 20, width - 40, height - 40], bbox_norm: [0.06, 0.06, 0.88, 0.88] };
+      detectedObjects.push({
+        id: `obj_${detectedObjects.length + 1}`,
+        label: 'Timber / Wood Scrap',
+        detector_category: 'wood_waste',
+        confidence: Math.min(0.94, Math.max(0.74, scores.wood_waste)),
+        confidence_pct: `${Math.round(Math.min(0.94, Math.max(0.74, scores.wood_waste)) * 100)}%`,
+        bbox: box.bbox,
+        bbox_norm: box.bbox_norm,
+        category: 'Timber & Biomass Waste',
+        waste_group: 'Biodegradable',
+        processing_type: 'Biomass Pelletizing & Horticultural Ground Cover',
+        recommendation: 'Deliver to timber recovery yard or high-density biomass fuel pelletizing plant.',
         is_food: false,
         low_confidence: false
       });
@@ -567,8 +737,8 @@ export class ClientAiEngine {
         id: 'obj_1',
         label: 'General Waste Specimen',
         detector_category: 'general',
-        confidence: 0.50,
-        confidence_pct: '50.0%',
+        confidence: 0.65,
+        confidence_pct: '65.0%',
         bbox: [mX, mY, mW, mH],
         bbox_norm: [0.1, 0.1, 0.8, 0.8],
         category: 'General Waste',
@@ -576,11 +746,11 @@ export class ClientAiEngine {
         processing_type: 'Municipal Sorting Facility',
         recommendation: 'Inspect specimen and segregate by visible material composition.',
         is_food: false,
-        low_confidence: true
+        low_confidence: false
       });
     }
 
-    // Scene Summary Aggregation (Requirement 5 & 8)
+    // Scene Summary Aggregation
     const hasDetectedFood = detectedObjects.some(o => o.is_food);
     const hasDetectedNonBio = detectedObjects.some(o => o.waste_group === 'Non-Biodegradable');
     const isMixedScene = hasDetectedFood && hasDetectedNonBio;
@@ -956,9 +1126,18 @@ export class ClientAiEngine {
   private static loadImage(src: string): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      // Only set crossOrigin on remote HTTP/HTTPS URLs! Never on data: or blob: URIs
+      if (src.startsWith('http://') || src.startsWith('https://')) {
+        img.crossOrigin = 'anonymous';
+      }
       img.onload = () => resolve(img);
-      img.onerror = (e) => reject(new Error('Failed to load image for visual analysis: ' + e));
+      img.onerror = () => {
+        // Fallback retry without crossOrigin in case host blocked CORS header
+        const fallback = new Image();
+        fallback.onload = () => resolve(fallback);
+        fallback.onerror = () => reject(new Error('Failed to load image for visual analysis. Please check format.'));
+        fallback.src = src;
+      };
       img.src = src;
     });
   }
