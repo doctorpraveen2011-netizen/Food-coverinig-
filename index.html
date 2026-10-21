@@ -10,9 +10,39 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- GitHub Pages Smart Fallback Redirection -->
+    <script>
+      (function() {
+        var host = window.location.hostname;
+        var path = window.location.pathname;
+        // If served from GitHub Pages main branch root without docs subpath, redirect to compiled /docs/
+        if (host.endsWith('github.io') && !path.includes('/docs/')) {
+          var targetBase = path.replace(/\/+$/, '') + '/docs/' + window.location.search + window.location.hash;
+          window.location.replace(targetBase);
+        }
+      })();
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased" style="background-color: #f8fafc; color: #0f172a; min-height: 100vh;">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div id="root">
+      <!-- Branded instantaneous fallback so user never experiences an empty white screen -->
+      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Inter', system-ui, -apple-system, sans-serif; background: #f8fafc; color: #0f172a; text-align: center; padding: 24px;">
+        <div style="width: 56px; height: 56px; border-radius: 16px; background: #ecfdf5; border: 1px solid #a7f3d0; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/>
+            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+          </svg>
+        </div>
+        <h2 style="font-size: 20px; font-weight: 700; margin: 0 0 8px 0; color: #0f172a;">FoodCovering 2.0 Loading...</h2>
+        <p style="font-size: 13px; color: #64748b; margin: 0 0 18px 0; max-width: 420px; line-height: 1.5;">
+          Initializing Food Safety AI, Real-time Dashboard, and Stakeholder Network.
+        </p>
+        <a id="direct-app-link" href="./docs/#/login" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; background: #059669; color: #ffffff; border-radius: 10px; text-decoration: none; font-size: 13px; font-weight: 600; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);">
+          <span>Open FoodCovering Application &rarr;</span>
+        </a>
+      </div>
+    </div>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>
