@@ -40,7 +40,7 @@ export default function SupermarketReports() {
 
   const [reportData, setReportData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [filterMode, setFilterMode] = useState<'all' | 'fresh' | 'near-expiry' | 'spoiled' | 'recyclable'>('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'fresh' | 'near-expiry' | 'spoiled' | 'recyclable' | 'waste'>('all');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [selectedEvidenceScan, setSelectedEvidenceScan] = useState<any | null>(null);
   const [copiedRef, setCopiedRef] = useState(false);
@@ -88,8 +88,10 @@ export default function SupermarketReports() {
         {
           analysis_id: 'SC-89213',
           display_name: 'PET Beverage Bottles & Crates',
-          freshness: 'Spoiled / Bio-Waste',
-          risk: 'High',
+          analysis_type: 'waste',
+          detected_class: 'plastic_bottles',
+          processing_route: 'Recyclable',
+          risk: 'Low',
           confidence_pct: '96.0%',
           category: 'Packaging Materials',
           waste_group: 'Non-Biodegradable',
@@ -133,10 +135,47 @@ export default function SupermarketReports() {
   // Format scans uniformly strictly from live scans
   const allScans = serverScans.map((s: any) => {
     const rawClass = (s.detected_class || s.food || s.displayName || '').toLowerCase();
-    const isFresh = s.freshness === 'Fresh' || rawClass.includes('fresh') || s.risk === 'Low';
-    const isSpoiled = s.freshness === 'Spoiled' || rawClass.includes('rotten') || s.risk === 'High' || s.analysis_type === 'waste';
-    const isNearExpiry = !isFresh && !isSpoiled;
-    const isRecyclable = s.waste_group === 'Non-Biodegradable' || rawClass.includes('plastic') || rawClass.includes('bottle') || rawClass.includes('metal') || rawClass.includes('can');
+    const isWaste = s.analysis_type === 'waste' || ['food_waste', 'leaf_waste', 'metal_cans', 'plastic_bottles', 'plastic_bags', 'paper_waste', 'wood_waste', 'ewaste'].includes(s.detected_class);
+
+    // Food Freshness metrics ONLY for food
+    const isFresh = !isWaste && (s.freshness === 'Fresh' || rawClass.includes('fresh') || s.risk === 'Low');
+    const isSpoiled = !isWaste && (s.freshness === 'Spoiled' || rawClass.includes('rotten') || s.risk === 'High');
+    const isNearExpiry = !isWaste && !isFresh && !isSpoiled;
+
+    // Waste metrics
+    const isSpecialHandling = isWaste && (s.processing_route === 'Special Handling' || s.waste_group?.includes('Special') || rawClass.includes('ewaste') || rawClass.includes('battery'));
+    const isRecyclable = isWaste && !isSpecialHandling && (s.processing_route === 'Recyclable' || s.waste_group === 'Non-Biodegradable' || rawClass.includes('plastic') || rawClass.includes('metal') || rawClass.includes('bottle') || rawClass.includes('can'));
+    const isBioWaste = isWaste && !isSpecialHandling && (s.waste_group === 'Biodegradable' || rawClass.includes('food_waste') || rawClass.includes('leaf_waste') || rawClass.includes('wood'));
+
+    // Category-specific Status Label & Badge styling (Phase 42 & 43)
+    let statusLabel = 'Fresh';
+    let statusBadgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    if (!isWaste) {
+      if (isFresh) {
+        statusLabel = 'Fresh';
+        statusBadgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      } else if (isNearExpiry) {
+        statusLabel = 'Near-Expiry';
+        statusBadgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
+      } else {
+        statusLabel = 'Spoiled';
+        statusBadgeClass = 'bg-red-100 text-red-800 border-red-200';
+      }
+    } else {
+      if (isSpecialHandling) {
+        statusLabel = 'Special Handling';
+        statusBadgeClass = 'bg-purple-100 text-purple-800 border-purple-200';
+      } else if (isRecyclable) {
+        statusLabel = 'Recyclable';
+        statusBadgeClass = 'bg-indigo-100 text-indigo-800 border-indigo-200';
+      } else if (isBioWaste) {
+        statusLabel = 'Biodegradable';
+        statusBadgeClass = 'bg-teal-100 text-teal-800 border-teal-200';
+      } else {
+        statusLabel = 'Non-Biodegradable';
+        statusBadgeClass = 'bg-slate-100 text-slate-800 border-slate-200';
+      }
+    }
 
     const formattedDate = s.created_at 
       ? new Date(s.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -158,17 +197,23 @@ export default function SupermarketReports() {
       name: s.display_name || s.food || s.detected_food || s.detected_category || 'Scanned Food/Waste',
       image: validImage,
       gradcamImage: s.gradcam_image || null,
-      category: s.category || s.primary_category || (s.analysis_type === 'waste' ? 'Waste Material' : 'Produce & Grocery'),
-      wasteGroup: s.waste_group || (isRecyclable ? 'Non-Biodegradable' : 'Biodegradable'),
-      freshness: isFresh ? 'Fresh' : isNearExpiry ? 'Near-Expiry' : 'Spoiled / Bio-Waste',
-      risk: isFresh ? 'Low' : isNearExpiry ? 'Medium' : 'High',
+      category: s.category || s.primary_category || (isWaste ? 'Waste Material' : 'Produce & Grocery'),
+      wasteGroup: s.waste_group || (isBioWaste ? 'Biodegradable' : 'Non-Biodegradable'),
+      freshness: statusLabel,
+      statusLabel,
+      statusBadgeClass,
+      risk: isWaste ? (isSpecialHandling ? 'Special' : 'Low') : (isFresh ? 'Low' : isNearExpiry ? 'Medium' : 'High'),
       confidence: s.confidence_pct || (s.confidence ? `${Math.round(s.confidence * 100)}%` : '98%'),
-      recommendation: s.recommendation || s.recommended_action || (isFresh ? 'Safe for retail distribution.' : isNearExpiry ? 'Immediate surplus donation recommended.' : 'Segregated for organic composting.'),
+      recommendation: s.recommendation || s.recommended_action || (isWaste ? (isRecyclable ? 'Route to recycling facility.' : 'Compost organic waste.') : (isFresh ? 'Safe for retail distribution.' : isNearExpiry ? 'Immediate surplus donation recommended.' : 'Quarantined for disposal.')),
+      processingRoute: s.processing_route || s.suggested_processing || (isSpecialHandling ? 'Special Handling' : isRecyclable ? 'Recyclable' : 'Composting'),
       date: formattedDate,
+      isWaste,
       isFresh,
       isNearExpiry,
       isSpoiled,
       isRecyclable,
+      isSpecialHandling,
+      isBioWaste,
       sensorTelemetry: s.sensor_telemetry || null
     };
   });
@@ -178,7 +223,7 @@ export default function SupermarketReports() {
     if (filterMode === 'fresh') return s.isFresh;
     if (filterMode === 'near-expiry') return s.isNearExpiry;
     if (filterMode === 'spoiled') return s.isSpoiled;
-    if (filterMode === 'recyclable') return s.isRecyclable;
+    if (filterMode === 'waste' || filterMode === 'recyclable') return s.isWaste;
     return true;
   });
 
@@ -187,6 +232,7 @@ export default function SupermarketReports() {
   const freshCount = allScans.filter(s => s.isFresh).length;
   const nearExpiryCount = allScans.filter(s => s.isNearExpiry).length;
   const spoiledCount = allScans.filter(s => s.isSpoiled).length;
+  const wasteCount = allScans.filter(s => s.isWaste).length;
 
   const openEvidenceModal = (scan: any) => {
     setSelectedEvidenceScan(scan);
@@ -410,7 +456,15 @@ export default function SupermarketReports() {
                 filterMode === 'spoiled' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'
               }`}
             >
-              Spoiled / Bio-Waste ({spoiledCount})
+              Spoiled ({spoiledCount})
+            </button>
+            <button
+              onClick={() => setFilterMode('waste')}
+              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-colors cursor-pointer ${
+                filterMode === 'waste' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+              }`}
+            >
+              Recyclable & Waste ({wasteCount})
             </button>
           </div>
         </div>
@@ -499,14 +553,10 @@ export default function SupermarketReports() {
                       {scan.category}
                     </td>
 
-                    {/* Quality Grade */}
+                    {/* Quality Grade / Waste Status */}
                     <td className="py-3 px-3">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
-                        scan.isFresh ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
-                        scan.isNearExpiry ? 'bg-amber-100 text-amber-800 border border-amber-200' :
-                        'bg-red-100 text-red-800 border border-red-200'
-                      }`}>
-                        {scan.freshness}
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${scan.statusBadgeClass}`}>
+                        {scan.statusLabel}
                       </span>
                     </td>
 
@@ -570,7 +620,7 @@ export default function SupermarketReports() {
                                 prefillDonation: {
                                   foodItems: scan.name,
                                   category: scan.category,
-                                  notes: `Certified surplus by AI scan ${scan.id}. Quality: ${scan.freshness}.`
+                                  notes: `Certified surplus by AI scan ${scan.id}. Quality: ${scan.statusLabel}.`
                                 }
                               }
                             })}
@@ -581,7 +631,17 @@ export default function SupermarketReports() {
                           </button>
                         ) : scan.isSpoiled ? (
                           <span className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
-                            Bio-Waste
+                            Quarantine / Spoilage
+                          </span>
+                        ) : scan.isWaste ? (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                            scan.isSpecialHandling 
+                              ? 'text-purple-700 bg-purple-50 border-purple-200' 
+                              : scan.isRecyclable 
+                              ? 'text-indigo-700 bg-indigo-50 border-indigo-200' 
+                              : 'text-teal-700 bg-teal-50 border-teal-200'
+                          }`}>
+                            {scan.isSpecialHandling ? '⚡ E-Waste Hub' : scan.isRecyclable ? '♻ Recycler' : '🍂 Composting'}
                           </span>
                         ) : (
                           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">

@@ -624,29 +624,106 @@ export function getStoredFacilities() {
   ];
 }
 
-// Waste Statistics
+// Waste Statistics (Real-time scans only - zero-state when empty)
 export function getStoredWasteStats() {
-  return {
-    totalAnalyses: 142,
-    biodegradableCount: 94,
-    nonBiodegradableCount: 48,
-    mostDetectedCategory: 'food_waste',
-    averageConfidence: 96.2,
-    biodegradablePercentage: 66.2,
-    nonBiodegradablePercentage: 33.8,
-    divertedKg: 2150.5,
-    co2SavedKg: 1075.25,
-    categoryCounts: {
-      food_waste: 65,
-      plastic_bottles: 28,
-      paper_waste: 22,
-      metal_cans: 15,
-      leaf_waste: 8,
-      wood_waste: 4,
-      plastic_bags: 6,
-      ewaste: 2
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('foodcovering_waste_scans') : null;
+    const scans: any[] = raw ? JSON.parse(raw) : [];
+    const total = scans.length;
+    if (total === 0) {
+      return {
+        totalAnalyses: 0,
+        biodegradableCount: 0,
+        nonBiodegradableCount: 0,
+        mostDetectedCategory: '--',
+        averageConfidence: 0,
+        biodegradablePercentage: 0,
+        nonBiodegradablePercentage: 0,
+        divertedKg: 0,
+        co2SavedKg: 0,
+        categoryCounts: {
+          food_waste: 0,
+          leaf_waste: 0,
+          paper_waste: 0,
+          wood_waste: 0,
+          metal_cans: 0,
+          plastic_bottles: 0,
+          plastic_bags: 0,
+          ewaste: 0
+        }
+      };
     }
-  };
+
+    let bioCount = 0;
+    let nonBioCount = 0;
+    let sumConf = 0;
+    const catCounts: Record<string, number> = {
+      food_waste: 0,
+      leaf_waste: 0,
+      paper_waste: 0,
+      wood_waste: 0,
+      metal_cans: 0,
+      plastic_bottles: 0,
+      plastic_bags: 0,
+      ewaste: 0
+    };
+
+    scans.forEach(s => {
+      if (s.waste_group === 'Biodegradable') bioCount++;
+      else nonBioCount++;
+      const confVal = typeof s.confidence === 'number' ? (s.confidence > 1 ? s.confidence : s.confidence * 100) : parseFloat(s.confidence_pct) || 90;
+      sumConf += confVal;
+      const cat = s.predicted_class || s.detected_class || 'food_waste';
+      catCounts[cat] = (catCounts[cat] || 0) + 1;
+    });
+
+    const topCat = Object.entries(catCounts).sort(([, a], [, b]) => b - a)[0]?.[0] || '--';
+
+    return {
+      totalAnalyses: total,
+      biodegradableCount: bioCount,
+      nonBiodegradableCount: nonBioCount,
+      mostDetectedCategory: topCat,
+      averageConfidence: Math.round(sumConf / total),
+      biodegradablePercentage: Math.round((bioCount / total) * 100),
+      nonBiodegradablePercentage: Math.round((nonBioCount / total) * 100),
+      divertedKg: Number((bioCount * 1.5).toFixed(1)),
+      co2SavedKg: Number((bioCount * 0.75).toFixed(2)),
+      categoryCounts: catCounts
+    };
+  } catch (e) {
+    return {
+      totalAnalyses: 0,
+      biodegradableCount: 0,
+      nonBiodegradableCount: 0,
+      mostDetectedCategory: '--',
+      averageConfidence: 0,
+      biodegradablePercentage: 0,
+      nonBiodegradablePercentage: 0,
+      divertedKg: 0,
+      co2SavedKg: 0,
+      categoryCounts: {
+        food_waste: 0,
+        leaf_waste: 0,
+        paper_waste: 0,
+        wood_waste: 0,
+        metal_cans: 0,
+        plastic_bottles: 0,
+        plastic_bags: 0,
+        ewaste: 0
+      }
+    };
+  }
+}
+
+export function saveStoredWasteScan(record: any) {
+  try {
+    if (typeof window === 'undefined') return;
+    const raw = localStorage.getItem('foodcovering_waste_scans');
+    const scans = raw ? JSON.parse(raw) : [];
+    scans.unshift(record);
+    localStorage.setItem('foodcovering_waste_scans', JSON.stringify(scans.slice(0, 50)));
+  } catch (e) {}
 }
 
 // User Dashboard Data Provider

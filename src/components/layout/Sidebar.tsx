@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../store/useAuthStore';
 
 interface SidebarProps {
@@ -27,47 +28,48 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
+  const { t } = useTranslation();
   const user = useAuthStore((state) => state.user);
   const role = user?.role || 'NORMAL_USER';
 
-  // Role-specific navigation items
+  // Role-specific navigation items with multi-language support
   let navItems: Array<{ name: string; icon: any; path: string; badge?: string }> = [];
 
   if (role === 'NORMAL_USER') {
     navItems = [
-      { name: 'Dashboard', icon: LayoutDashboard, path: '/user/dashboard' },
-      { name: 'AI Food & Waste Scan', icon: Sparkles, path: '/user/ai-scan' },
-      { name: 'My Donations', icon: Gift, path: '/user/donations' },
-      { name: 'Report Spoilage', icon: ShieldCheck, path: '/user/complaints' },
-      { name: 'Live Tracking', icon: MapPin, path: '/user/tracking' },
-      { name: 'My Profile', icon: Settings, path: '/user/settings' },
+      { name: t('dashboard', 'Dashboard'), icon: LayoutDashboard, path: '/user/dashboard' },
+      { name: t('aiFoodWasteScan', 'AI Food & Waste Scan'), icon: Sparkles, path: '/user/ai-scan' },
+      { name: t('myDonations', 'My Donations'), icon: Gift, path: '/user/donations' },
+      { name: t('reportSpoilage', 'Report Spoilage'), icon: ShieldCheck, path: '/user/complaints' },
+      { name: t('tracking', 'Live Tracking'), icon: MapPin, path: '/user/tracking' },
+      { name: t('myProfile', 'My Profile'), icon: Settings, path: '/user/settings' },
     ];
   } else if (role === 'SUPERMARKET_OFFICIAL') {
     navItems = [
-      { name: 'Store Dashboard', icon: LayoutDashboard, path: '/supermarket/dashboard' },
-      { name: 'Food Inventory', icon: Package, path: '/supermarket/inventory' },
-      { name: 'Live GPS Tracking', icon: MapPin, path: '/supermarket/tracking', badge: 'LIVE' },
-      { name: 'AI Food & Waste Scan', icon: Sparkles, path: '/supermarket/ai-scan' },
-      { name: 'Surplus Donations', icon: Gift, path: '/supermarket/donations' },
-      { name: 'Store Complaints', icon: ShieldCheck, path: '/supermarket/complaints' },
-      { name: 'Audit Reports', icon: FileText, path: '/supermarket/reports' },
-      { name: 'Store Settings', icon: Settings, path: '/supermarket/settings' },
+      { name: t('storeDashboard', 'Store Dashboard'), icon: LayoutDashboard, path: '/supermarket/dashboard' },
+      { name: t('inventory', 'Food Inventory'), icon: Package, path: '/supermarket/inventory' },
+      { name: t('tracking', 'Live GPS Tracking'), icon: MapPin, path: '/supermarket/tracking', badge: 'LIVE' },
+      { name: t('aiFoodWasteScan', 'AI Food & Waste Scan'), icon: Sparkles, path: '/supermarket/ai-scan' },
+      { name: t('surplusDonations', 'Surplus Donations'), icon: Gift, path: '/supermarket/donations' },
+      { name: t('storeComplaints', 'Store Complaints'), icon: ShieldCheck, path: '/supermarket/complaints' },
+      { name: t('auditReports', 'Audit Reports'), icon: FileText, path: '/supermarket/reports' },
+      { name: t('settings', 'Store Settings'), icon: Settings, path: '/supermarket/settings' },
     ];
   } else {
     // HEAD_OFFICE_ADMIN
     navItems = [
-      { name: 'Executive Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
-      { name: 'AI Food & Waste Scan', icon: Sparkles, path: '/admin/ai-scan' },
-      { name: 'Supermarkets', icon: Building2, path: '/admin/supermarkets' },
-      { name: 'User Management', icon: Users, path: '/admin/users' },
-      { name: 'Central Food Safety', icon: ShieldCheck, path: '/admin/complaints' },
-      { name: 'Platform Donations', icon: Gift, path: '/admin/donations' },
-      { name: 'Fleet Tracking', icon: MapPin, path: '/admin/tracking' },
-      { name: 'City Map View', icon: Map, path: '/admin/map' },
-      { name: 'Analytics & Reports', icon: FileText, path: '/admin/reports' },
-      { name: 'Alerts & Broadcasts', icon: Bell, path: '/admin/alerts', badge: '3' },
-      { name: 'Audit Ledger', icon: FileCheck, path: '/admin/audit-logs' },
-      { name: 'System Settings', icon: Settings, path: '/admin/settings' },
+      { name: t('dashboard', 'Executive Dashboard'), icon: LayoutDashboard, path: '/admin/dashboard' },
+      { name: t('aiFoodWasteScan', 'AI Food & Waste Scan'), icon: Sparkles, path: '/admin/ai-scan' },
+      { name: t('supermarkets', 'Supermarkets'), icon: Building2, path: '/admin/supermarkets' },
+      { name: t('users', 'User Management'), icon: Users, path: '/admin/users' },
+      { name: t('complaints', 'Central Food Safety'), icon: ShieldCheck, path: '/admin/complaints' },
+      { name: t('donations', 'Platform Donations'), icon: Gift, path: '/admin/donations' },
+      { name: t('fleetTracking', 'Fleet Tracking'), icon: MapPin, path: '/admin/tracking' },
+      { name: t('mapView', 'City Map View'), icon: Map, path: '/admin/map' },
+      { name: t('reports', 'Analytics & Reports'), icon: FileText, path: '/admin/reports' },
+      { name: t('alerts', 'Alerts & Broadcasts'), icon: Bell, path: '/admin/alerts', badge: '3' },
+      { name: t('auditLedger', 'Audit Ledger'), icon: FileCheck, path: '/admin/audit-logs' },
+      { name: t('settings', 'System Settings'), icon: Settings, path: '/admin/settings' },
     ];
   }
 

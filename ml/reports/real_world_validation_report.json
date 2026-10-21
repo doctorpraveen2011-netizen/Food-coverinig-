@@ -1,0 +1,277 @@
+{
+  "total_tests": 9,
+  "passed": 9,
+  "accuracy_pct": 100.0,
+  "results": [
+    {
+      "test": "TEST 1: Rotten Orange (User Upload with Penicillium Mold)",
+      "status": "SUCCESS",
+      "detected_item": "Spoiled Orange",
+      "category": "Produce",
+      "waste_group": "Biodegradable",
+      "confidence": "100.0%",
+      "model": "EfficientNet-B0 (Food Freshness Classifier)",
+      "top_predictions": [
+        {
+          "class": "rottenoranges",
+          "confidence": 0.9996,
+          "confidence_pct": "100.0%",
+          "displayName": "Spoiled Orange"
+        },
+        {
+          "class": "freshoranges",
+          "confidence": 0.0004,
+          "confidence_pct": "0.0%",
+          "displayName": "Fresh Orange"
+        },
+        {
+          "class": "freshapples",
+          "confidence": 0.0,
+          "confidence_pct": "0.0%",
+          "displayName": "Fresh Apple"
+        }
+      ],
+      "correct": true
+    },
+    {
+      "test": "TEST 2: Aluminum Metal Can",
+      "status": "SUCCESS",
+      "detected_item": "Metal Cans & Tins",
+      "category": "Metals & Alloys",
+      "waste_group": "Non-Biodegradable",
+      "confidence": "100.0%",
+      "model": "MobileNetV3-Large (Waste Classifier)",
+      "top_predictions": [
+        {
+          "class": "metal_cans",
+          "confidence": 1.0,
+          "confidence_pct": "100.0%",
+          "displayName": "Metal Cans & Tins"
+        },
+        {
+          "class": "food_waste",
+          "confidence": 0.0,
+          "confidence_pct": "0.0%",
+          "displayName": "Organic Food Waste"
+        },
+        {
+          "class": "plastic_bottles",
+          "confidence": 0.0,
+          "confidence_pct": "0.0%",
+          "displayName": "PET Plastic Beverage Bottles"
+        }
+      ],
+      "correct": true
+    },
+    {
+      "test": "TEST 3: PET Plastic Bottle",
+      "status": "SUCCESS",
+      "detected_item": "PET Plastic Beverage Bottles",
+      "category": "Plastics (PET #1)",
+      "waste_group": "Non-Biodegradable",
+      "confidence": "100.0%",
+      "model": "MobileNetV3-Large (Waste Classifier)",
+      "top_predictions": [
+        {
+          "class": "plastic_bottles",
+          "confidence": 0.9996,
+          "confidence_pct": "100.0%",
+          "displayName": "PET Plastic Beverage Bottles"
+        },
+        {
+          "class": "plastic_bags",
+          "confidence": 0.0002,
+          "confidence_pct": "0.0%",
+          "displayName": "Plastic Bags & Wrappers"
+        },
+        {
+          "class": "metal_cans",
+          "confidence": 0.0002,
+          "confidence_pct": "0.0%",
+          "displayName": "Metal Cans & Tins"
+        }
+      ],
+      "correct": true
+    },
+    {
+      "test": "TEST 4: Corrugated Cardboard / Paper Scrap",
+      "status": "SUCCESS",
+      "detected_item": "Corrugated Cardboard & Mixed Paper",
+      "category": "Paper & Fibre",
+      "waste_group": "Biodegradable Recyclable",
+      "confidence": "94.0%",
+      "model": "MobileNetV3-Large (Waste Classifier)",
+      "top_predictions": [
+        {
+          "class": "paper_waste",
+          "confidence": 0.9398,
+          "confidence_pct": "94.0%",
+          "displayName": "Corrugated Cardboard & Mixed Paper"
+        },
+        {
+          "class": "ewaste",
+          "confidence": 0.0591,
+          "confidence_pct": "5.9%",
+          "displayName": "Electronic Scrap & Hardware"
+        },
+        {
+          "class": "plastic_bags",
+          "confidence": 0.0006,
+          "confidence_pct": "0.1%",
+          "displayName": "Plastic Bags & Wrappers"
+        }
+      ],
+      "correct": true
+    },
+    {
+      "test": "TEST 5: Garden / Leaf Waste",
+      "status": "SUCCESS",
+      "detected_item": "Garden Green Waste",
+      "category": "Garden & Yard Waste",
+      "waste_group": "Biodegradable",
+      "confidence": "99.9%",
+      "model": "MobileNetV3-Large (Waste Classifier)",
+      "top_predictions": [
+        {
+          "class": "leaf_waste",
+          "confidence": 0.9995,
+          "confidence_pct": "99.9%",
+          "displayName": "Garden Green Waste"
+        },
+        {
+          "class": "food_waste",
+          "confidence": 0.0003,
+          "confidence_pct": "0.0%",
+          "displayName": "Organic Food Waste"
+        },
+        {
+          "class": "plastic_bags",
+          "confidence": 0.0001,
+          "confidence_pct": "0.0%",
+          "displayName": "Plastic Bags & Wrappers"
+        }
+      ],
+      "correct": true
+    },
+    {
+      "test": "TEST 6: Electronic Waste / PCB Scrap",
+      "status": "SUCCESS",
+      "detected_item": "Electronic Scrap & Hardware",
+      "category": "Electronic Waste (E-Waste)",
+      "waste_group": "Non-Biodegradable",
+      "confidence": "100.0%",
+      "model": "MobileNetV3-Large (Waste Classifier)",
+      "top_predictions": [
+        {
+          "class": "ewaste",
+          "confidence": 0.9998,
+          "confidence_pct": "100.0%",
+          "displayName": "Electronic Scrap & Hardware"
+        },
+        {
+          "class": "metal_cans",
+          "confidence": 0.0001,
+          "confidence_pct": "0.0%",
+          "displayName": "Metal Cans & Tins"
+        },
+        {
+          "class": "paper_waste",
+          "confidence": 0.0,
+          "confidence_pct": "0.0%",
+          "displayName": "Corrugated Cardboard & Mixed Paper"
+        }
+      ],
+      "correct": true
+    },
+    {
+      "test": "TEST 7: Organic Food Leftovers / Scraps",
+      "status": "SUCCESS",
+      "detected_item": "Organic Food Waste",
+      "category": "Organic Food Waste",
+      "waste_group": "Biodegradable",
+      "confidence": "100.0%",
+      "model": "MobileNetV3-Large (Waste Classifier)",
+      "top_predictions": [
+        {
+          "class": "food_waste",
+          "confidence": 1.0,
+          "confidence_pct": "100.0%",
+          "displayName": "Organic Food Waste"
+        },
+        {
+          "class": "metal_cans",
+          "confidence": 0.0,
+          "confidence_pct": "0.0%",
+          "displayName": "Metal Cans & Tins"
+        },
+        {
+          "class": "paper_waste",
+          "confidence": 0.0,
+          "confidence_pct": "0.0%",
+          "displayName": "Corrugated Cardboard & Mixed Paper"
+        }
+      ],
+      "correct": true
+    },
+    {
+      "test": "TEST 8: Timber & Wood Scrap",
+      "status": "SUCCESS",
+      "detected_item": "Timber & Wood Scrap",
+      "category": "Timber & Biomass Waste",
+      "waste_group": "Biodegradable",
+      "confidence": "98.6%",
+      "model": "MobileNetV3-Large (Waste Classifier)",
+      "top_predictions": [
+        {
+          "class": "wood_waste",
+          "confidence": 0.9855,
+          "confidence_pct": "98.6%",
+          "displayName": "Timber & Wood Scrap"
+        },
+        {
+          "class": "food_waste",
+          "confidence": 0.007,
+          "confidence_pct": "0.7%",
+          "displayName": "Organic Food Waste"
+        },
+        {
+          "class": "paper_waste",
+          "confidence": 0.0067,
+          "confidence_pct": "0.7%",
+          "displayName": "Corrugated Cardboard & Mixed Paper"
+        }
+      ],
+      "correct": true
+    },
+    {
+      "test": "TEST 9: Unknown / Out-of-Distribution Rejection",
+      "status": "UNCERTAIN",
+      "detected_item": "Unknown / Unsupported Item",
+      "category": "Unknown / Unsupported",
+      "waste_group": "Unknown",
+      "confidence": "36.3%",
+      "model": "FoodCovering Dual-Classifier Router",
+      "top_predictions": [
+        {
+          "class": "wood_waste",
+          "confidence": 0.3627,
+          "confidence_pct": "36.3%",
+          "displayName": "Timber & Wood Scrap"
+        },
+        {
+          "class": "metal_cans",
+          "confidence": 0.1255,
+          "confidence_pct": "12.6%",
+          "displayName": "Metal Cans & Tins"
+        },
+        {
+          "class": "plastic_bags",
+          "confidence": 0.1146,
+          "confidence_pct": "11.5%",
+          "displayName": "Plastic Bags & Wrappers"
+        }
+      ],
+      "correct": true
+    }
+  ]
+}

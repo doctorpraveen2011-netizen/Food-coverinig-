@@ -239,7 +239,7 @@ export default function SupermarketDashboard() {
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-2xs">
-          <span className="text-[11px] font-medium text-red-700 block mb-1">Spoiled / Bio-Waste</span>
+          <span className="text-[11px] font-medium text-red-700 block mb-1">Spoiled Food</span>
           <p className="text-2xl font-bold text-red-600">{loading ? '...' : stats?.spoiledCount ?? 0}</p>
           <span className="text-[10px] text-red-600 font-medium">Quarantined</span>
         </div>

@@ -12,13 +12,17 @@ import {
   AlertTriangle,
   Award,
   Sparkles,
-  MapPin
+  MapPin,
+  Languages,
+  Globe,
+  Check
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useComplaintsStore } from '../../store/useComplaintsStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import CredentialPointsModal from '../credentials/CredentialPointsModal';
+import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '../../utils/aiTranslations';
 
 interface TopNavbarProps {
   toggleSidebar: () => void;
@@ -34,11 +38,13 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isDateRangeOpen, setIsDateRangeOpen] = useState(false);
   const [isCredentialModalOpen, setIsCredentialModalOpen] = useState(false);
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const [selectedDateRange, setSelectedDateRange] = useState('28 Sep 2026 - 28 Sep 2026');
 
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const dateRef = useRef<HTMLDivElement>(null);
+  const langRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -51,13 +57,19 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
       if (dateRef.current && !dateRef.current.contains(e.target as Node)) {
         setIsDateRangeOpen(false);
       }
+      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+        setIsLangMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const changeLanguage = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    i18n.changeLanguage(e.target.value);
+  const currentLangCode = (i18n.language ? i18n.language.split('-')[0] : 'en') as SupportedLanguage;
+
+  const handleSelectLanguage = (code: SupportedLanguage) => {
+    i18n.changeLanguage(code);
+    setIsLangMenuOpen(false);
   };
 
   const handleGlobalSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -217,17 +229,64 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
           )}
         </div>
 
-        {/* Language Selector */}
-        <div className="flex items-center">
-          <select 
-            className="text-xs bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer text-gray-700 font-medium"
-            onChange={changeLanguage}
-            value={i18n.language ? i18n.language.split('-')[0] : 'en'}
+        {/* Multi-Language Selector Dropdown */}
+        <div className="relative" ref={langRef}>
+          <button
+            type="button"
+            onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 transition-all shadow-2xs cursor-pointer group"
+            title="Translate Project / Change Language"
           >
-            <option value="en">EN</option>
-            <option value="ta">TA</option>
-            <option value="hi">HI</option>
-          </select>
+            <Languages className="w-3.5 h-3.5 text-emerald-600 group-hover:rotate-12 transition-transform" />
+            <span className="text-sm leading-none">
+              {SUPPORTED_LANGUAGES.find((l) => l.code === currentLangCode)?.flag || '🌐'}
+            </span>
+            <span className="font-extrabold uppercase text-[11px] text-slate-800 hidden sm:inline">
+              {currentLangCode}
+            </span>
+            <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-slate-600" />
+          </button>
+
+          {isLangMenuOpen && (
+            <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl p-1.5 z-40 text-xs animate-in fade-in zoom-in-95">
+              <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+                <span className="font-bold text-[11px] text-slate-800 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-emerald-600" />
+                  Select Language
+                </span>
+                <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-bold">
+                  8 Languages
+                </span>
+              </div>
+
+              <div className="py-1 max-h-64 overflow-y-auto space-y-0.5">
+                {SUPPORTED_LANGUAGES.map((lang) => {
+                  const isSelected = currentLangCode === lang.code;
+                  return (
+                    <button
+                      key={lang.code}
+                      type="button"
+                      onClick={() => handleSelectLanguage(lang.code)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-emerald-50 text-emerald-900 font-bold border border-emerald-200/70'
+                          : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-base leading-none">{lang.flag}</span>
+                        <div>
+                          <div className="font-bold text-xs leading-snug">{lang.nativeName}</div>
+                          <div className="text-[10px] text-slate-400 leading-none">{lang.name}</div>
+                        </div>
+                      </div>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* User Profile Avatar & Menu */}

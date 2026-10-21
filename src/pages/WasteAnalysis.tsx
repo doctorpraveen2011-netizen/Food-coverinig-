@@ -44,7 +44,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuthStore } from '../store/useAuthStore';
 import { ClientAiEngine } from '../utils/clientAiEngine';
-import { getStoredWasteStats, getStoredFacilities } from '../data/mockDatabase';
+import { getStoredWasteStats, getStoredFacilities, saveStoredWasteScan } from '../data/mockDatabase';
 
 // Fix Leaflet icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -123,13 +123,15 @@ interface WasteAnalysisHistoryItem {
   created_at: string;
 }
 
-const DATASET_SAMPLES = [
-  { name: 'Organic Food Waste', file: './samples/sample_food_waste.jpg', group: 'Biodegradable', icon: '🍲' },
-  { name: 'PET Plastic Bottle', file: './samples/sample_plastic_bottle.jpg', group: 'Non-Biodegradable', icon: '🧴' },
-  { name: 'Metal Can & Tin', file: './samples/sample_metal_can.jpg', group: 'Non-Biodegradable', icon: '🥫' },
-  { name: 'Cardboard & Paper', file: './samples/sample_paper_waste.jpg', group: 'Biodegradable', icon: '📦' },
-  { name: 'Garden Green Waste', file: './samples/sample_leaf_waste.jpg', group: 'Biodegradable', icon: '🍂' },
-  { name: 'Electronic E-Waste', file: './samples/sample_ewaste.jpg', group: 'Non-Biodegradable', icon: '💻' }
+const SUPPORTED_WASTE_CLASSES = [
+  { id: 'food_waste', name: 'Food Waste', group: 'Biodegradable', icon: '🍲', desc: 'Cooked/raw organic scraps' },
+  { id: 'leaf_waste', name: 'Garden / Leaf Waste', group: 'Biodegradable', icon: '🍂', desc: 'Plant cuttings, leaves' },
+  { id: 'wood_waste', name: 'Wood / Timber Waste', group: 'Biodegradable', icon: '🪵', desc: 'Untreated wood, shavings' },
+  { id: 'paper_waste', name: 'Paper & Cardboard', group: 'Biodegradable & Recyclable', icon: '📦', desc: 'Boxes, cartons, paper' },
+  { id: 'metal_cans', name: 'Metal Cans & Tins', group: 'Non-Biodegradable / Recyclable', icon: '🥫', desc: 'Aluminum, steel tins' },
+  { id: 'plastic_bottles', name: 'PET Plastic Bottles', group: 'Non-Biodegradable / Recyclable', icon: '🧴', desc: 'Beverage bottles, HDPE' },
+  { id: 'plastic_bags', name: 'Plastic Bags & Film', group: 'Non-Biodegradable / Recyclable', icon: '🛍️', desc: 'Polythene, wrappers' },
+  { id: 'ewaste', name: 'Electronic E-Waste', group: 'Non-Biodegradable / Special Handling', icon: '💻', desc: 'Circuits, batteries, cords' }
 ];
 
 export default function WasteAnalysis() {
@@ -144,20 +146,20 @@ export default function WasteAnalysis() {
   const [selectedFacility, setSelectedFacility] = useState<any>(null);
 
   const [stats, setStats] = useState<WasteStats>({
-    totalAnalyses: 4,
-    biodegradableCount: 2,
-    nonBiodegradableCount: 2,
-    mostDetectedCategory: 'food_waste',
-    averageConfidence: 95,
-    biodegradablePercentage: 50,
-    nonBiodegradablePercentage: 50,
+    totalAnalyses: 0,
+    biodegradableCount: 0,
+    nonBiodegradableCount: 0,
+    mostDetectedCategory: '--',
+    averageConfidence: 0,
+    biodegradablePercentage: 0,
+    nonBiodegradablePercentage: 0,
     categoryCounts: {
-      food_waste: 1,
+      food_waste: 0,
       leaf_waste: 0,
-      paper_waste: 1,
+      paper_waste: 0,
       wood_waste: 0,
-      metal_cans: 1,
-      plastic_bottles: 1,
+      metal_cans: 0,
+      plastic_bottles: 0,
       plastic_bags: 0,
       ewaste: 0
     }
@@ -215,9 +217,6 @@ export default function WasteAnalysis() {
 
   useEffect(() => {
     loadStatsAndHistory();
-    // Default preview with food waste sample
-    setUploadedImage('./samples/sample_food_waste.jpg');
-    setSelectedFileName('sample_food_waste.jpg');
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -231,12 +230,6 @@ export default function WasteAnalysis() {
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  const selectSample = (sample: typeof DATASET_SAMPLES[0]) => {
-    setUploadedImage(sample.file);
-    setSelectedFileName(sample.file.split('/').pop() || 'sample.jpg');
-    setResult(null);
   };
 
   const handleAnalyze = async () => {
@@ -261,6 +254,19 @@ export default function WasteAnalysis() {
       if (res.ok) {
         const data = await res.json();
         setResult(data);
+        saveStoredWasteScan({
+          analysis_id: data.analysis_id || 'AI-' + Date.now().toString().slice(-6),
+          image: uploadedImage,
+          predicted_class: data.prediction || data.detected_class || 'food_waste',
+          display_name: data.display_name || data.detected_item || 'Waste Item',
+          confidence: data.confidence || 0.9,
+          confidence_pct: data.confidence_pct || '90%',
+          waste_group: data.waste_group || 'Non-Biodegradable',
+          recommended_action: data.recommended_action || 'Process at approved center',
+          processing_route: data.processing_route || data.suggested_processing || 'Recyclable',
+          eco_impact: data.eco_impact || '+0.50 kg CO2 avoided',
+          created_at: new Date().toISOString()
+        });
         if (data.suitable_facilities && data.suitable_facilities.length > 0) {
           setSelectedFacility(data.suitable_facilities[0]);
         }
@@ -276,6 +282,19 @@ export default function WasteAnalysis() {
           filename: selectedFileName || 'waste_sample.jpg'
         });
         setResult(clientData);
+        saveStoredWasteScan({
+          analysis_id: clientData.analysis_id || 'AI-' + Date.now().toString().slice(-6),
+          image: uploadedImage,
+          predicted_class: clientData.prediction || clientData.detected_class || 'food_waste',
+          display_name: clientData.display_name || clientData.detected_item || 'Waste Item',
+          confidence: clientData.confidence || 0.9,
+          confidence_pct: clientData.confidence_pct || '90%',
+          waste_group: clientData.waste_group || 'Non-Biodegradable',
+          recommended_action: clientData.recommended_action || 'Process at approved center',
+          processing_route: clientData.processing_route || clientData.suggested_processing || 'Recyclable',
+          eco_impact: clientData.eco_impact || '+0.50 kg CO2 avoided',
+          created_at: new Date().toISOString()
+        });
         if (clientData.suitable_facilities && clientData.suitable_facilities.length > 0) {
           setSelectedFacility(clientData.suitable_facilities[0]);
         }
@@ -294,10 +313,10 @@ export default function WasteAnalysis() {
     return { name: formatted, count };
   });
 
-  const segregationPieData = [
-    { name: 'Biodegradable', value: stats.biodegradableCount || 1, color: '#10B981' },
-    { name: 'Non-Biodegradable', value: stats.nonBiodegradableCount || 1, color: '#6366F1' }
-  ];
+  const segregationPieData = stats.totalAnalyses > 0 ? [
+    { name: 'Biodegradable', value: stats.biodegradableCount, color: '#10B981' },
+    { name: 'Non-Biodegradable', value: stats.nonBiodegradableCount, color: '#6366F1' }
+  ] : [];
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -321,11 +340,11 @@ export default function WasteAnalysis() {
               AI Waste Analytics
             </h1>
             <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
-              Kaggle archive (2)
+              Multi-category AI Waste Recognition
             </span>
           </div>
           <p className="text-sm text-slate-500">
-            Deep-learning powered waste identification, segregation, and circular recycling routing.
+            AI-powered biodegradable and non-biodegradable waste recognition, segregation, and circular recycling routing.
           </p>
         </div>
 
@@ -365,7 +384,9 @@ export default function WasteAnalysis() {
             <Leaf className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl font-extrabold text-emerald-600">{stats.biodegradableCount}</div>
-          <div className="text-[10px] text-slate-400 mt-1">{stats.biodegradablePercentage}% of stream</div>
+          <div className="text-[10px] text-slate-400 mt-1">
+            {stats.totalAnalyses > 0 ? `${stats.biodegradablePercentage}% of stream` : '0% of stream'}
+          </div>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
@@ -374,7 +395,9 @@ export default function WasteAnalysis() {
             <Recycle className="w-4 h-4 text-indigo-600" />
           </div>
           <div className="text-2xl font-extrabold text-indigo-600">{stats.nonBiodegradableCount}</div>
-          <div className="text-[10px] text-slate-400 mt-1">{stats.nonBiodegradablePercentage}% of stream</div>
+          <div className="text-[10px] text-slate-400 mt-1">
+            {stats.totalAnalyses > 0 ? `${stats.nonBiodegradablePercentage}% of stream` : '0% of stream'}
+          </div>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
@@ -383,7 +406,7 @@ export default function WasteAnalysis() {
             <TrendingUp className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-sm font-bold text-slate-900 capitalize truncate">
-            {stats.mostDetectedCategory.replace('_', ' ')}
+            {stats.totalAnalyses > 0 ? stats.mostDetectedCategory.replace('_', ' ') : '--'}
           </div>
           <div className="text-[10px] text-slate-400 mt-1">Leading waste segment</div>
         </div>
@@ -393,7 +416,9 @@ export default function WasteAnalysis() {
             <span className="text-xs font-medium">Avg Confidence</span>
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-2xl font-extrabold text-slate-900">{stats.averageConfidence}%</div>
+          <div className="text-2xl font-extrabold text-slate-900">
+            {stats.totalAnalyses > 0 && stats.averageConfidence ? `${stats.averageConfidence}%` : '--'}
+          </div>
           <div className="text-[10px] text-emerald-600 font-medium mt-1">Deep Learning Softmax</div>
         </div>
       </div>
@@ -405,7 +430,7 @@ export default function WasteAnalysis() {
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
             <h2 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-1.5">
               <Camera className="w-4 h-4 text-emerald-600" />
-              Upload Waste Image or Select Test Bench
+              Upload Waste Image or Capture Specimen
             </h2>
 
             {/* Image Preview Box */}
@@ -455,27 +480,22 @@ export default function WasteAnalysis() {
               </button>
             </div>
 
-            {/* Kaggle Dataset Test Bench (1-Click Evaluation) */}
+            {/* Supported Categories (Phase 5 & 46: Real Model Taxonomy) */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-700">1-Click Kaggle Dataset Samples:</span>
-                <span className="text-[10px] text-slate-400">archive (2)</span>
+                <span className="text-xs font-bold text-slate-700">Supported Categories (8 Model Classes):</span>
+                <span className="text-[10px] text-emerald-600 font-semibold">Trained PyTorch Model</span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {DATASET_SAMPLES.map((s, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => selectSample(s)}
-                    className={`p-2 rounded-xl border text-left transition-all ${
-                      selectedFileName === s.file.split('/').pop()
-                        ? 'border-emerald-600 bg-emerald-50/50 shadow-2xs ring-1 ring-emerald-500'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                    }`}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {SUPPORTED_WASTE_CLASSES.map((cls) => (
+                  <div
+                    key={cls.id}
+                    className="p-2 rounded-xl border border-slate-200 bg-slate-50/50 text-left"
                   >
-                    <div className="text-base mb-1">{s.icon}</div>
-                    <div className="text-[11px] font-bold text-slate-800 truncate">{s.name}</div>
-                    <div className="text-[9px] text-slate-400 truncate">{s.group}</div>
-                  </button>
+                    <div className="text-base mb-1">{cls.icon}</div>
+                    <div className="text-[11px] font-bold text-slate-800 truncate">{cls.name}</div>
+                    <div className="text-[9px] text-slate-500 truncate">{cls.group}</div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -538,6 +558,8 @@ export default function WasteAnalysis() {
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                       result.waste_group === 'Biodegradable'
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : result.processing_route === 'Special Handling' || result.waste_group?.includes('Special')
+                        ? 'bg-amber-50 text-amber-700 border-amber-200'
                         : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                     }`}>
                       {result.waste_group}
@@ -597,6 +619,17 @@ export default function WasteAnalysis() {
                   </div>
                 </div>
               </div>
+
+              {/* Explainable AI: Natural Language Inference Summary (Phase 31) */}
+              {result.explanation && (
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 leading-relaxed space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                    <Info className="w-4 h-4 text-emerald-600" />
+                    <span>Neural Model Classification Rationale</span>
+                  </div>
+                  <p>{result.explanation}</p>
+                </div>
+              )}
 
               {/* Explainable AI: Grad-CAM Attention Heatmap */}
               {result.gradcam_image && (

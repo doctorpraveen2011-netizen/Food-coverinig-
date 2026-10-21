@@ -1,24 +1,28 @@
 """
 FoodCovering 2.0 - Multi-Model AI Food & Waste Intelligence Engine
+Strictly PyTorch Deep Learning Pipelines (MobileNetV3-Large + EfficientNet-B0)
+Canonical Taxonomy Driven by waste_taxonomy.json
+
 Architecture:
 USER IMAGE
      ↓
-IMAGE QUALITY CHECK (Resolution, Blur, Exposure)
+IMAGE QUALITY VALIDATION (Resolution, Dark, Glare, Blur)
      ↓
-GENERAL WASTE / MATERIAL CLASSIFIER (MobileNetV3-Large on Waste Segregation Dataset)
+GENERAL WASTE CLASSIFIER (MobileNetV3-Large on Waste Segregation Dataset)
      ↓
-SPECIFIC CATEGORY & CLASS ROUTER
+SPECIFIC MATERIAL / CATEGORY ROUTER
    ↙          ↓           ↘
- FOOD       WASTE       UNKNOWN
-   ↓          ↓
-Freshness   Waste Processing
-(if valid)
+ FOOD       WASTE       UNKNOWN / OOD
+   ↓          ↓               ↓
+Freshness   Waste Processing   Manual Review
+(if fruit)  (Recyclable/Compost)
 
-Key Principles:
-1. Freshness model is NEVER the universal classifier.
-2. Waste images (plastics, metals, papers, leaves, e-waste) are handled strictly by the Waste Classifier.
-3. Food does NOT mean fruit. Supported fruits: Apple, Banana, Orange. Unsupported/cooked food returns clear message.
-4. Zero random predictions or fake fallbacks. Low confidence returns UNKNOWN / UNCERTAIN.
+Key Rules:
+1. Zero fake predictions, zero random confidence values, zero forced fruit fallbacks.
+2. Freshness model is ONLY invoked when the detected item is one of the supported fruits (Apple, Banana, Orange).
+3. General food waste (cooked food, plate leftovers, mixed scraps) is classified as Food Waste (Biodegradable Composting).
+4. Non-food materials (metals, plastics, papers, wood, e-waste) are NEVER routed to freshness and NEVER labeled 'Spoiled'.
+5. When uncertainty threshold is not met, return UNKNOWN / UNSUPPORTED.
 """
 
 import os
@@ -26,7 +30,7 @@ import io
 import json
 import base64
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 import torch
 import torch.nn as nn
@@ -41,6 +45,7 @@ REPORTS_DIR = ML_DIR / "reports"
 
 FRESHNESS_DIR = MODELS_DIR / "freshness"
 WASTE_DIR = MODELS_DIR / "waste"
+TAXONOMY_PATH = ML_DIR / "waste_taxonomy.json"
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
@@ -48,25 +53,25 @@ INPUT_SIZE = 224
 
 DISCLAIMER_TEXT = "AI analysis is an automated visual screening aid and does not replace official food safety inspection, laboratory testing, or municipal guidelines."
 
-SUPPORTED_FOOD_TYPES = ["Apple", "Banana", "Orange", "Produce / Fruit", "Organic Waste", "Recyclable Materials"]
+SUPPORTED_FOOD_TYPES = ["Apple", "Banana", "Orange", "Produce / Fruit", "Organic Food Waste", "Recyclable Materials"]
 
 # Metadata for supported fruit freshness
 FRUIT_META = {
     "freshapples": {
         "item": "Fresh Apple",
-        "category": "Food",
+        "category": "Produce",
         "wasteGroup": "Biodegradable",
         "freshness": "Fresh",
         "risk": "Low",
-        "shelfLife": "5-7 days",
-        "recommendation": "Firm texture with intact skin. Continue normal FoodCovering donation screening.",
+        "shelfLife": "7-10 days",
+        "recommendation": "Firm texture with intact skin. Certified suitable for surplus donation.",
         "action": "Continue normal FoodCovering donation screening.",
         "ecoImpact": "+0.45 kg CO2 avoided via redistribution",
         "icon": "🍎"
     },
     "rottenapples": {
         "item": "Spoiled Apple",
-        "category": "Food",
+        "category": "Produce",
         "wasteGroup": "Biodegradable",
         "freshness": "Spoiled",
         "risk": "High",
@@ -78,19 +83,19 @@ FRUIT_META = {
     },
     "freshbanana": {
         "item": "Fresh Banana",
-        "category": "Food",
+        "category": "Produce",
         "wasteGroup": "Biodegradable",
         "freshness": "Fresh",
         "risk": "Low",
-        "shelfLife": "3-4 days",
-        "recommendation": "Clean peel and optimal firmness. Continue normal FoodCovering donation screening.",
+        "shelfLife": "3-5 days",
+        "recommendation": "Clean peel and optimal firmness. Certified suitable for surplus donation.",
         "action": "Continue normal FoodCovering donation screening.",
         "ecoImpact": "+0.40 kg CO2 avoided via redistribution",
         "icon": "🍌"
     },
     "rottenbanana": {
         "item": "Spoiled Banana",
-        "category": "Food",
+        "category": "Produce",
         "wasteGroup": "Biodegradable",
         "freshness": "Spoiled",
         "risk": "High",
@@ -102,19 +107,19 @@ FRUIT_META = {
     },
     "freshoranges": {
         "item": "Fresh Orange",
-        "category": "Food",
+        "category": "Produce",
         "wasteGroup": "Biodegradable",
         "freshness": "Fresh",
         "risk": "Low",
         "shelfLife": "7-10 days",
-        "recommendation": "Healthy citrus rind without visible fungal decay. Continue normal FoodCovering donation screening.",
+        "recommendation": "Healthy citrus rind without visible fungal decay. Certified suitable for surplus donation.",
         "action": "Continue normal FoodCovering donation screening.",
         "ecoImpact": "+0.50 kg CO2 avoided via redistribution",
         "icon": "🍊"
     },
     "rottenoranges": {
         "item": "Spoiled Orange",
-        "category": "Food",
+        "category": "Produce",
         "wasteGroup": "Biodegradable",
         "freshness": "Spoiled",
         "risk": "High",
@@ -164,36 +169,34 @@ class GradCAM:
             cam += w * activations[i]
 
         cam = np.maximum(cam, 0)
-        if cam.max() > 0:
-            cam = cam / cam.max()
-        else:
-            cam = np.zeros_like(cam)
-
+        if np.max(cam) > 0:
+            cam = cam / np.max(cam)
         cam = cv2.resize(cam, (INPUT_SIZE, INPUT_SIZE))
         return cam
 
 
-def generate_gradcam_overlay(pil_img: Image.Image, cam_heatmap: np.ndarray) -> str:
-    orig_np = np.array(pil_img.resize((INPUT_SIZE, INPUT_SIZE)).convert("RGB"))
-    heatmap_colored = cv2.applyColorMap(np.uint8(255 * cam_heatmap), cv2.COLORMAP_JET)
-    heatmap_colored = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
+def generate_gradcam_overlay(pil_img: Image.Image, cam_map: np.ndarray) -> str:
+    orig_np = np.array(pil_img.convert("RGB").resize((INPUT_SIZE, INPUT_SIZE)))
+    heatmap = cv2.applyColorMap(np.uint8(255 * cam_map), cv2.COLORMAP_JET)
+    heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
 
-    blended = np.uint8(0.6 * orig_np + 0.4 * heatmap_colored)
-    blended_pil = Image.fromarray(blended)
+    overlay = np.float32(heatmap) * 0.45 + np.float32(orig_np) * 0.55
+    overlay = np.uint8(np.clip(overlay, 0, 255))
 
-    buffer = io.BytesIO()
-    blended_pil.save(buffer, format="JPEG", quality=85)
-    return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode('utf-8')
+    overlay_img = Image.fromarray(overlay)
+    buffered = io.BytesIO()
+    overlay_img.save(buffered, format="JPEG", quality=90)
+    return f"data:image/jpeg;base64,{base64.b64encode(buffered.getvalue()).decode('utf-8')}"
 
 
 def validate_image_quality(pil_img: Image.Image) -> Dict[str, Any]:
     width, height = pil_img.size
-    if width < 32 or height < 32:
+    if width < 64 or height < 64:
         return {
             "valid": False,
-            "reason": "Image resolution is too low (< 32x32 pixels).",
-            "issue": "low_resolution",
-            "instructions": "Capture a clearer image closer to the item."
+            "reason": f"Image resolution too low ({width}x{height}px). Minimum required is 64x64px.",
+            "issue": "resolution",
+            "instructions": "Capture a clearer photo closer to the specimen."
         }
 
     eval_w = 512
@@ -208,10 +211,10 @@ def validate_image_quality(pil_img: Image.Image) -> Dict[str, Any]:
     mean_brightness = float(np.mean(gray))
     std_brightness = float(np.std(gray))
 
-    # Dark check: only pitch black images (< 8.0)
-    is_dark = mean_brightness < 8.0
-    # Bright glare check: only blown-out washed-out images with no contrast
-    is_bright = mean_brightness > 252.0 and std_brightness < 8.0
+    # Dark check: pitch black images (< 10.0)
+    is_dark = mean_brightness < 10.0
+    # Bright glare check: blown-out washed-out glare
+    is_bright = mean_brightness > 250.0 and std_brightness < 10.0
 
     if is_dark:
         return {
@@ -219,12 +222,12 @@ def validate_image_quality(pil_img: Image.Image) -> Dict[str, Any]:
             "reason": "Image is severely underexposed (pitch black).",
             "issue": "dark",
             "brightness": round(mean_brightness, 1),
-            "instructions": "Ensure adequate lighting or turn on flash."
+            "instructions": "Ensure adequate lighting or turn on camera flash."
         }
     if is_bright:
         return {
             "valid": False,
-            "reason": "Image is excessively washed out (blinding overexposed glare).",
+            "reason": "Image is excessively washed out (intense glare / overexposed).",
             "issue": "bright",
             "brightness": round(mean_brightness, 1),
             "instructions": "Avoid direct intense glare or harsh reflections."
@@ -240,11 +243,8 @@ def validate_image_quality(pil_img: Image.Image) -> Dict[str, Any]:
 
 class FoodInspector:
     """
-    Deep Semantic Food & Item Inspector.
-    Utilizes MobileNetV3-Large pre-trained on ImageNet (1000 categories)
-    to differentiate between:
-      1. Whole single fruits (Apple, Banana, Orange, Citrus) eligible for Freshness inspection.
-      2. Specific food waste items (Burgers, Fries, Pizzas, Leftovers, Baked Goods, Cooked Meals, Vegetables).
+    Deep Semantic Food Inspector using ImageNet-1K pre-trained MobileNetV3-Large.
+    Used ONLY to confirm if an organic item is a known whole fruit eligible for freshness evaluation.
     """
     def __init__(self, device: torch.device):
         self.device = device
@@ -261,141 +261,66 @@ class FoodInspector:
             'banana': 'Banana'
         }
 
-        # Granular mapping for food waste subtypes
-        self.food_waste_subtypes = {
-            'cheeseburger': ('Fast Food Leftovers (Burger & Fries)', '🍟'),
-            'hotdog': ('Fast Food Waste (Hotdog & Snacks)', '🌭'),
-            'pizza': ('Prepared Food Waste (Pizza Scraps)', '🍕'),
-            'burrito': ('Fast Food Waste (Burrito & Wraps)', '🌯'),
-            'pretzel': ('Bakery & Snack Waste', '🥨'),
-            'French loaf': ('Bakery & Bread Waste', '🥖'),
-            'bagel': ('Bakery & Bread Waste', '🥯'),
-            'waffle': ('Bakery & Pastry Waste', '🧇'),
-            'ice cream': ('Dairy / Sweet Food Waste', '🍨'),
-            'plate': ('Food Plate Leftovers & Scraps', '🍽️'),
-            'soup bowl': ('Meal Leftovers & Food Scraps', '🍲'),
-            'consomme': ('Soup & Broth Leftovers', '🍲'),
-            'hot pot': ('Cooked Stew & Meal Waste', '🍲'),
-            'carbonara': ('Prepared Pasta Food Waste', '🍝'),
-            'mashed potato': ('Cooked Potato & Food Waste', '🥔'),
-            'meat loaf': ('Meat & Meal Food Waste', '🥩'),
-            'potpie': ('Cooked Meal Food Waste', '🥧'),
-            'trifle': ('Dessert & Food Waste', '🍰'),
-            'guacamole': ('Prepared Vegetable Dip Waste', '🥑'),
-            'head cabbage': ('Vegetable Food Waste (Cabbage & Greens)', '🥬'),
-            'broccoli': ('Vegetable Food Waste (Broccoli & Greens)', '🥦'),
-            'cauliflower': ('Vegetable Food Waste (Cauliflower)', '🥦'),
-            'cucumber': ('Vegetable Food Waste (Cucumber)', '🥒'),
-            'zucchini': ('Vegetable Food Waste (Zucchini)', '🥒'),
-            'bell pepper': ('Vegetable Food Waste (Peppers)', '🫑'),
-            'mushroom': ('Vegetable Food Waste (Mushrooms)', '🍄'),
-            'artichoke': ('Vegetable Food Waste', '🥗'),
-            'cardoon': ('Vegetable Food Waste', '🥗'),
-            'spaghetti squash': ('Squash & Vegetable Waste', '🎃'),
-            'acorn squash': ('Squash & Vegetable Waste', '🎃'),
-            'butternut squash': ('Squash & Vegetable Waste', '🎃'),
-            'strawberry': ('Berry / Fruit Waste', '🍓'),
-            'pineapple': ('Fruit Peel & Scrap Waste', '🍍'),
-            'pomegranate': ('Fruit Peel & Scrap Waste', '🍎'),
-            'fig': ('Fruit Waste & Scraps', '🍇'),
-            'jackfruit': ('Fruit Peel & Biomass Waste', '🍈'),
-            'custard apple': ('Fruit Waste & Biomass', '🍈'),
-        }
-
-    def check_fruit_and_waste(self, pil_img: Image.Image) -> Dict[str, Any]:
+    def check_is_fruit(self, pil_img: Image.Image) -> Dict[str, Any]:
         t = self.prep(pil_img.convert('RGB')).unsqueeze(0).to(self.device)
         with torch.no_grad():
             out = self.model(t)
             probs = torch.softmax(out, dim=1).squeeze(0)
 
-        top_probs, top_ids = torch.topk(probs, 10)
+        top_probs, top_ids = torch.topk(probs, 5)
 
-        # 1. Check if strongly identified as whole fruit (Apple, Banana, Orange)
         for i in range(5):
             cat = self.categories[top_ids[i]]
             p = float(top_probs[i].item())
-            if cat in self.fruit_species and p >= 0.20:
+            if cat in self.fruit_species and p >= 0.40: # High confidence threshold required
                 return {
                     'is_fruit': True,
                     'fruit_type': self.fruit_species[cat],
-                    'fruit_conf': p,
-                    'subtype_name': None,
-                    'subtype_icon': '🍎'
-                }
-
-        # 2. Check for specific food waste subtype
-        for i in range(10):
-            cat = self.categories[top_ids[i]]
-            if cat in self.food_waste_subtypes:
-                name, icon = self.food_waste_subtypes[cat]
-                return {
-                    'is_fruit': False,
-                    'fruit_type': None,
-                    'fruit_conf': 0.0,
-                    'subtype_name': name,
-                    'subtype_icon': icon,
-                    'detected_raw_class': cat
+                    'fruit_conf': p
                 }
 
         return {
             'is_fruit': False,
             'fruit_type': None,
-            'fruit_conf': 0.0,
-            'subtype_name': 'Organic Food Waste (Plate Scraps & Biomass)',
-            'subtype_icon': '🍲',
-            'detected_raw_class': 'general_food_waste'
+            'fruit_conf': 0.0
         }
 
 
 class WasteClassifier:
     """
     Dedicated Waste & Material Classifier.
-    Trained on aashidutt3/waste-segregation-image-dataset (archive 2).
-    Model Architecture: MobileNetV3-Large.
-    Classes (8 Granular Categories):
-      - food_waste
-      - leaf_waste
-      - paper_waste
-      - wood_waste
-      - metal_cans
-      - plastic_bottles
-      - plastic_bags
-      - ewaste
+    Trained on Kaggle Waste Segregation Dataset (archive 2, 15,366 samples).
+    Architecture: MobileNetV3-Large.
     """
-    def __init__(self, food_inspector: Optional[FoodInspector] = None):
+    def __init__(self):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.food_inspector = food_inspector
-        self.load_metadata()
+        self.load_taxonomy()
         self.load_model()
+        # Preprocessing matching ImageNet standards: Resize(256) -> CenterCrop(224)
         self.prep_transform = transforms.Compose([
-            transforms.Resize((INPUT_SIZE, INPUT_SIZE)),
+            transforms.Resize(256),
+            transforms.CenterCrop(INPUT_SIZE),
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
         ])
 
-    def load_metadata(self):
-        meta_file = WASTE_DIR / "waste_meta.json"
-        labels_file = WASTE_DIR / "waste_labels.json"
-
-        if labels_file.exists():
-            with open(labels_file, "r", encoding="utf-8") as f:
-                self.classes = json.load(f)
+    def load_taxonomy(self):
+        self.classes = [
+            "food_waste", "leaf_waste", "paper_waste", "wood_waste",
+            "metal_cans", "plastic_bottles", "plastic_bags", "ewaste"
+        ]
+        if TAXONOMY_PATH.exists():
+            with open(TAXONOMY_PATH, "r", encoding="utf-8") as f:
+                tax_data = json.load(f)
+                self.classes = tax_data.get("classes", self.classes)
+                self.taxonomy = tax_data.get("taxonomy", {})
+                self.uncertainty_policy = tax_data.get("uncertainty_policy", {})
         else:
-            self.classes = [
-                "food_waste", "leaf_waste", "paper_waste", "wood_waste",
-                "metal_cans", "plastic_bottles", "plastic_bags", "ewaste"
-            ]
+            self.taxonomy = {}
+            self.uncertainty_policy = {}
 
-        if meta_file.exists():
-            with open(meta_file, "r", encoding="utf-8") as f:
-                self.meta = json.load(f)
-        else:
-            self.meta = {}
-
-        self.hierarchy = self.meta.get("class_hierarchy", {})
-        self.uncertainty_threshold = float(self.meta.get("uncertainty_threshold", 0.40))
-        self.accuracy = float(self.meta.get("accuracy", 91.26))
-        self.degradability_accuracy = float(self.meta.get("degradability_accuracy", 94.59))
+        self.uncertainty_threshold = float(self.uncertainty_policy.get("confidence_threshold", 0.45))
+        self.margin_threshold = float(self.uncertainty_policy.get("margin_threshold", 0.08))
 
     def load_model(self):
         weights_path = WASTE_DIR / "waste_model.pth"
@@ -432,54 +357,70 @@ class WasteClassifier:
         pred_class = self.classes[pred_idx]
         confidence_val = float(probs_np[pred_idx])
 
+        # Top 3 predictions with real softmax probabilities
+        sorted_indices = np.argsort(probs_np)[::-1]
+        top_preds = []
+        for idx in sorted_indices[:3]:
+            c = self.classes[idx]
+            info = self.taxonomy.get(c, {})
+            top_preds.append({
+                "class": c,
+                "confidence": round(float(probs_np[idx]), 4),
+                "confidence_pct": f"{round(float(probs_np[idx]) * 100, 1)}%",
+                "displayName": info.get("displayName", c.replace("_", " ").title())
+            })
+
+        # Top 1 vs Top 2 margin check
+        second_conf = float(probs_np[sorted_indices[1]]) if len(sorted_indices) > 1 else 0.0
+        margin = confidence_val - second_conf
+
         prob_dict = {
             self.classes[i]: round(float(probs_np[i]), 4)
             for i in range(len(self.classes))
         }
 
-        # Calculate Bio vs Non-Bio probability
+        # Biodegradable vs Non-Biodegradable probability calculation
         bio_classes = ["food_waste", "leaf_waste", "paper_waste", "wood_waste"]
         non_bio_classes = ["metal_cans", "plastic_bottles", "plastic_bags", "ewaste"]
         bio_prob = sum(prob_dict.get(c, 0.0) for c in bio_classes)
         non_bio_prob = sum(prob_dict.get(c, 0.0) for c in non_bio_classes)
         is_biodegradable = bio_prob >= non_bio_prob
 
-        # Uncertainty threshold check
-        if confidence_val < self.uncertainty_threshold:
+        # Uncertainty Policy: Below threshold or insufficient margin -> Return UNCERTAIN
+        if confidence_val < self.uncertainty_threshold or (confidence_val < 0.55 and margin < self.margin_threshold):
             return {
                 "status": "UNCERTAIN",
                 "mode": "waste",
-                "food": "Unknown / Unsupported Waste Item",
+                "food": "Unknown / Unsupported Item",
                 "displayName": "Unknown / Unsupported Item",
                 "predicted_class": "uncertain",
-                "item": "Unknown Waste",
+                "item": "Unknown Item",
                 "category": "Unknown / Unsupported",
                 "waste_group": "Unknown",
-                "processing_type": "Unknown",
+                "processing_type": "Manual Review",
                 "confidence": f"{round(confidence_val * 100, 1)}%",
                 "confidence_score": round(confidence_val, 4),
                 "probabilities": prob_dict,
-                "recommendation": "The AI could not reliably classify this item.",
-                "message": "The AI could not reliably classify this item.",
+                "top_predictions": top_preds,
+                "recommendation": "The AI model could not classify this item with sufficient confidence.",
+                "explanation": f"Top class '{top_preds[0]['displayName']}' scored only {top_preds[0]['confidence_pct']}, below the 45% confidence threshold.",
                 "suggestions": [
-                    "Use better lighting",
-                    "Move closer to the item",
-                    "Keep the object centered in the frame",
-                    "Avoid blurry captures",
-                    "Try another angle"
+                    "Ensure the item is placed under adequate lighting",
+                    "Center the object directly in the frame",
+                    "Avoid blurry camera movement",
+                    "Capture against a clean, uncluttered background"
                 ],
                 "model": "MobileNetV3-Large (Waste Classifier)",
                 "supported": False
             }
 
-        # Grad-CAM heatmap
         cam_map = self.gradcam.generate_heatmap(tensor_img, pred_idx)
         gradcam_b64 = generate_gradcam_overlay(pil_img, cam_map)
 
-        meta = self.hierarchy.get(pred_class, {
+        meta = self.taxonomy.get(pred_class, {
             "displayName": pred_class.replace("_", " ").title(),
             "category": "Biodegradable Organic" if is_biodegradable else "Non-Biodegradable Recyclable",
-            "item": pred_class.replace("_", " ").title(),
+            "material": pred_class.replace("_", " ").title(),
             "wasteGroup": "Biodegradable" if is_biodegradable else "Non-Biodegradable",
             "processingType": "Organic Composting" if is_biodegradable else "Recyclable",
             "freshness": "Organic Biomass" if is_biodegradable else "Non-Edible Recyclable",
@@ -490,25 +431,6 @@ class WasteClassifier:
             "icon": "♻️"
         })
 
-        if pred_class == "food_waste" and self.food_inspector is not None:
-            inspect_res = self.food_inspector.check_fruit_and_waste(pil_img)
-            subtype_name = inspect_res.get("subtype_name")
-            subtype_icon = inspect_res.get("subtype_icon", "🍲")
-            if subtype_name:
-                meta = {
-                    "displayName": subtype_name,
-                    "category": "Biodegradable Organic",
-                    "item": subtype_name,
-                    "wasteGroup": "Biodegradable",
-                    "processingType": "Organic Composting & Bio-Digestion",
-                    "freshness": "Food Scraps / Leftovers",
-                    "risk": "High",
-                    "safety": "Unfit for Human Consumption",
-                    "action": "Route to Organic Bio-Compost or Anaerobic Bio-Digester facility.",
-                    "ecoImpact": "+0.55 kg CO2 avoided via organic composting",
-                    "icon": subtype_icon
-                }
-
         is_spoil = meta.get("risk") == "High" or pred_class == "food_waste"
         sensor_data = {
             "temperature": "27°C" if is_spoil else "23°C",
@@ -518,87 +440,65 @@ class WasteClassifier:
             "gasVocColor": "text-rose-600" if is_spoil else "text-green-600"
         }
 
+        explanation = f"The model classified the image as {meta['displayName']} ({round(confidence_val*100, 1)}% confidence) based on learned visual features."
+
         return {
             "status": "SUCCESS",
             "mode": "waste",
             "food": f"{meta.get('icon', '♻️')} {meta['displayName']}",
             "displayName": meta["displayName"],
-            "detected_item": meta.get("item", meta["displayName"]),
-            "item": meta.get("item", meta["displayName"]),
+            "detected_item": meta["displayName"],
+            "item": meta["displayName"],
             "predicted_class": pred_class,
             "category": meta.get("category", "General Waste"),
             "primary_category": meta.get("category", "General Waste"),
             "waste_group": meta.get("wasteGroup", "Biodegradable" if is_biodegradable else "Non-Biodegradable"),
             "degradability": meta.get("wasteGroup", "Biodegradable" if is_biodegradable else "Non-Biodegradable"),
             "processing_type": meta.get("processingType", "Recyclable"),
-            "domain": meta.get("domain", "biodegradable" if is_biodegradable else "non_biodegradable"),
             "freshness": meta.get("freshness", "Non-Edible Recyclable"),
             "risk": meta.get("risk", "Low"),
             "safety": meta.get("safety", "Unfit for human consumption"),
             "confidence": f"{round(confidence_val * 100, 1)}%",
             "confidence_score": round(confidence_val, 4),
             "probabilities": prob_dict,
+            "top_predictions": top_preds,
             "bio_probability": round(bio_prob, 4),
             "non_bio_probability": round(non_bio_prob, 4),
             "shelfLife": "0 days (Waste Stream)" if is_spoil else "N/A (Recyclable)",
             "recommendation": meta.get("action", "Route to compatible facility."),
             "action": meta.get("action", "Route to compatible facility."),
+            "explanation": explanation,
             "ecoImpact": meta.get("ecoImpact", "+0.5 kg CO2 avoided"),
             "gradcam_image": gradcam_b64,
-            "gradcam_explanation": f"Grad-CAM highlighted class-activation textures identifying surface features characteristic of {meta['displayName']}.",
+            "gradcam_explanation": "Highlighted regions indicate visual patterns that influenced the model's classification. Grad-CAM is an interpretability aid and not definitive proof.",
             "image_quality": "good",
             "model": "MobileNetV3-Large (Waste Classifier)",
-            "test_accuracy": self.accuracy,
-            "degradability_accuracy": self.degradability_accuracy,
             "supported": True,
             "sensorData": sensor_data,
-            "disclaimer": "Deep Learning waste categorization is an automated segregation aid. Follow local municipal recycling protocols."
+            "disclaimer": "AI waste categorization is an automated segregation aid. Follow local municipal recycling guidelines."
         }
 
 
 class FreshnessClassifier:
     """
     Dedicated Food Freshness Classifier.
-    Trained strictly on verified fruit freshness classes:
-      - freshapples
-      - freshbanana
-      - freshoranges
-      - rottenapples
-      - rottenbanana
-      - rottenoranges
+    Trained strictly on verified fruit freshness classes (Apple, Banana, Orange).
     Model Architecture: EfficientNet-B0.
     """
     def __init__(self):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.load_metadata()
+        self.classes = [
+            "freshapples", "freshbanana", "freshoranges",
+            "rottenapples", "rottenbanana", "rottenoranges"
+        ]
         self.load_model()
         self.prep_transform = transforms.Compose([
-            transforms.Resize((INPUT_SIZE, INPUT_SIZE)),
+            transforms.Resize(256),
+            transforms.CenterCrop(INPUT_SIZE),
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
         ])
-
-    def load_metadata(self):
-        meta_file = FRESHNESS_DIR / "freshness_meta.json"
-        labels_file = FRESHNESS_DIR / "freshness_labels.json"
-
-        if labels_file.exists():
-            with open(labels_file, "r", encoding="utf-8") as f:
-                self.classes = json.load(f)
-        else:
-            self.classes = [
-                "freshapples", "freshbanana", "freshoranges",
-                "rottenapples", "rottenbanana", "rottenoranges"
-            ]
-
-        if meta_file.exists():
-            with open(meta_file, "r", encoding="utf-8") as f:
-                self.meta = json.load(f)
-        else:
-            self.meta = {}
-
-        self.uncertainty_threshold = float(self.meta.get("uncertainty_threshold", 0.60))
-        self.test_accuracy = float(self.meta.get("test_accuracy", 100.0))
+        self.uncertainty_threshold = 0.50
 
     def load_model(self):
         weights_path = FRESHNESS_DIR / "freshness_model.pth"
@@ -635,6 +535,18 @@ class FreshnessClassifier:
         pred_class = self.classes[pred_idx]
         confidence_val = float(probs_np[pred_idx])
 
+        # Top 3 predictions
+        sorted_indices = np.argsort(probs_np)[::-1]
+        top_preds = []
+        for idx in sorted_indices[:3]:
+            c = self.classes[idx]
+            top_preds.append({
+                "class": c,
+                "confidence": round(float(probs_np[idx]), 4),
+                "confidence_pct": f"{round(float(probs_np[idx]) * 100, 1)}%",
+                "displayName": FRUIT_META.get(c, {}).get("item", c)
+            })
+
         prob_dict = {
             self.classes[i]: round(float(probs_np[i]), 4)
             for i in range(len(self.classes))
@@ -643,7 +555,6 @@ class FreshnessClassifier:
         fresh_prob = sum(prob_dict.get(c, 0.0) for c in ["freshapples", "freshbanana", "freshoranges"])
         spoiled_prob = sum(prob_dict.get(c, 0.0) for c in ["rottenapples", "rottenbanana", "rottenoranges"])
 
-        # If low confidence on fruit classes
         if confidence_val < self.uncertainty_threshold:
             return {
                 "status": "UNCERTAIN",
@@ -652,18 +563,19 @@ class FreshnessClassifier:
                 "displayName": "Unknown Food Item",
                 "item": "Unknown Food",
                 "predicted_class": "uncertain",
-                "category": "Food / Organic",
+                "category": "Produce",
                 "waste_group": "Biodegradable",
                 "freshness": "Uncertain",
                 "risk": "Medium",
                 "confidence": f"{round(confidence_val * 100, 1)}%",
                 "confidence_score": round(confidence_val, 4),
                 "probabilities": prob_dict,
+                "top_predictions": top_preds,
                 "fresh_probability": round(fresh_prob, 4),
                 "spoiled_probability": round(spoiled_prob, 4),
                 "shelfLife": "Verify Physically",
-                "recommendation": "The AI could not reliably classify this fruit item.",
-                "message": "The AI could not reliably classify this fruit item.",
+                "recommendation": "The AI could not reliably determine freshness for this specimen.",
+                "explanation": f"Confidence was {round(confidence_val*100, 1)}%, which is below the 50% threshold for fresh food safety.",
                 "model": "EfficientNet-B0 (Freshness Classifier)",
                 "supported": False
             }
@@ -673,7 +585,7 @@ class FreshnessClassifier:
 
         meta = FRUIT_META.get(pred_class, {
             "item": pred_class.replace("fresh", "Fresh ").replace("rotten", "Spoiled ").title(),
-            "category": "Food",
+            "category": "Produce",
             "wasteGroup": "Biodegradable",
             "freshness": "Fresh" if "fresh" in pred_class else "Spoiled",
             "risk": "Low" if "fresh" in pred_class else "High",
@@ -706,6 +618,8 @@ class FreshnessClassifier:
             "gasVocColor": "text-rose-600" if is_spoil else "text-amber-600" if is_mod else "text-green-600"
         }
 
+        explanation = f"The model classified the image as {meta['item']} with {round(confidence_val*100, 1)}% confidence based on skin texture and color degradation patterns."
+
         return {
             "status": "SUCCESS",
             "mode": "freshness",
@@ -724,17 +638,18 @@ class FreshnessClassifier:
             "confidence": f"{round(confidence_val * 100, 1)}%",
             "confidence_score": round(confidence_val, 4),
             "probabilities": prob_dict,
+            "top_predictions": top_preds,
             "fresh_probability": round(fresh_prob, 4),
             "spoiled_probability": round(spoiled_prob, 4),
             "shelfLife": shelf_life_text,
             "recommendation": recommendation_text,
             "action": meta["action"],
+            "explanation": explanation,
             "ecoImpact": meta["ecoImpact"],
             "gradcam_image": gradcam_b64,
-            "gradcam_explanation": f"Grad-CAM highlighted surface regions that influenced the model's prediction for {meta['item']}.",
+            "gradcam_explanation": "Highlighted regions indicate visual patterns that influenced the model's classification. Grad-CAM is an interpretability aid and not definitive proof.",
             "image_quality": "good",
             "model": "EfficientNet-B0 (Food Freshness Classifier)",
-            "test_accuracy": self.test_accuracy,
             "supported": True,
             "sensorData": sensor_data,
             "disclaimer": DISCLAIMER_TEXT
@@ -744,7 +659,10 @@ class FreshnessClassifier:
 class AIRouter:
     """
     Unified Intelligent Router.
-    Routes inference based on explicit user mode and hierarchical taxonomy.
+    Routes inference based on explicit user mode and strict hierarchical taxonomy:
+    - Mode = 'waste' -> Only Waste Classifier. NEVER freshness.
+    - Mode = 'freshness' -> Only Freshness Classifier if supported food; else NOT_A_FOOD.
+    - Mode = 'auto' -> Primary Waste Classifier -> If whole fresh fruit detected -> Freshness Classifier; else Waste Result.
     """
     def __init__(self):
         print("\n" + "="*60)
@@ -752,12 +670,10 @@ class AIRouter:
         print("="*60)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.food_inspector = FoodInspector(device)
-        self.waste_classifier = WasteClassifier(food_inspector=self.food_inspector)
+        self.waste_classifier = WasteClassifier()
         self.freshness_classifier = FreshnessClassifier()
-        print(f"[ML-Router] Loaded Waste Model: {WASTE_DIR / 'waste_model.pth'}")
-        print(f"[ML-Router] Waste Classes ({len(self.waste_classifier.classes)}): {self.waste_classifier.classes}")
-        print(f"[ML-Router] Loaded Freshness Model: {FRESHNESS_DIR / 'freshness_model.pth'}")
-        print(f"[ML-Router] Freshness Classes ({len(self.freshness_classifier.classes)}): {self.freshness_classifier.classes}")
+        print(f"[ML-Router] Waste Classes: {self.waste_classifier.classes}")
+        print(f"[ML-Router] Freshness Classes: {self.freshness_classifier.classes}")
         print("="*60 + "\n")
 
     def route_and_analyze(self, pil_img: Image.Image, filename: str = "", mode: str = "auto") -> Dict[str, Any]:
@@ -778,8 +694,10 @@ class AIRouter:
                 "confidence": "0%",
                 "confidence_score": 0.0,
                 "probabilities": {},
+                "top_predictions": [],
                 "shelfLife": "Unknown",
                 "recommendation": quality_check["reason"],
+                "explanation": quality_check["reason"],
                 "instructions": quality_check.get("instructions", "Capture image in good lighting."),
                 "image_quality": "insufficient",
                 "quality_details": quality_check,
@@ -799,7 +717,9 @@ class AIRouter:
 
         # =====================================================================
         # ROUTE 2: EXPLICIT FOOD FRESHNESS MODE
-        # Compatibility check -> if supported fruit -> Freshness Model.
+        # Check if non-food -> reject with NOT_A_FOOD.
+        # Check if supported fruit -> Freshness Model.
+        # Else -> UNSUPPORTED_FOOD.
         # =====================================================================
         if mode == "freshness":
             waste_pre = self.waste_classifier.predict(pil_img)
@@ -807,89 +727,99 @@ class AIRouter:
             waste_conf = waste_pre.get("confidence_score", 0.0)
 
             non_food_classes = ["metal_cans", "plastic_bottles", "plastic_bags", "paper_waste", "wood_waste", "ewaste"]
-            if waste_class in non_food_classes and waste_conf >= 0.50:
+            if waste_class in non_food_classes and waste_conf >= 0.45:
                 return {
                     "status": "NOT_A_FOOD",
                     "mode": "freshness",
-                    "detected_item": waste_pre.get("item", waste_pre.get("displayName", "Non-Food Waste")),
-                    "displayName": waste_pre.get("displayName", "Non-Food Waste"),
-                    "item": waste_pre.get("item", "Non-Food Waste"),
+                    "detected_item": waste_pre.get("displayName", "Non-Food Material"),
+                    "displayName": waste_pre.get("displayName", "Non-Food Material"),
+                    "item": waste_pre.get("displayName", "Non-Food Material"),
                     "category": waste_pre.get("category", "Non-Food"),
                     "waste_group": waste_pre.get("waste_group", "Non-Biodegradable"),
                     "confidence": waste_pre.get("confidence", "0%"),
                     "confidence_score": waste_conf,
-                    "message": f"Item detected is not a food item ({waste_pre.get('displayName')}). Please switch to Waste Classification mode.",
-                    "recommendation": "Switch to Waste Classification mode for recyclable and waste segregation.",
+                    "top_predictions": waste_pre.get("top_predictions", []),
+                    "message": f"Item detected is not an edible food item ({waste_pre.get('displayName')}). Please switch to Waste Classification mode.",
+                    "explanation": f"Visual features match {waste_pre.get('displayName')} ({waste_pre.get('category')}). Non-food objects cannot be evaluated for food freshness.",
+                    "recommendation": "Switch to Waste Classification mode to view recycling instructions.",
                     "quality_details": quality_check,
-                    "model": "MobileNetV3 Waste Router",
+                    "model": "MobileNetV3 Waste Classifier",
                     "supported": False,
                     "disclaimer": DISCLAIMER_TEXT
                 }
 
-            # Check if this is a confirmed whole fruit (Apple, Banana, Orange)
-            inspect_res = self.food_inspector.check_fruit_and_waste(pil_img)
-            if inspect_res["is_fruit"] and inspect_res["fruit_conf"] >= 0.20:
+            # Check if whole fruit
+            inspect_res = self.food_inspector.check_is_fruit(pil_img)
+            if inspect_res["is_fruit"] and inspect_res["fruit_conf"] >= 0.40:
                 fresh_res = self.freshness_classifier.predict(pil_img)
                 fresh_res["quality_details"] = quality_check
                 return fresh_res
 
-            # In Freshness Mode, but the item is cooked food / general food waste:
-            waste_pre["quality_details"] = quality_check
-            return waste_pre
+            # In Freshness Mode, but it is not a supported fruit:
+            return {
+                "status": "UNSUPPORTED_FOOD",
+                "mode": "freshness",
+                "detected_item": "Organic Food / Produce (Unsupported for Freshness)",
+                "displayName": "Unsupported Food Category",
+                "item": "Unsupported Food",
+                "category": "Organic Food Waste",
+                "waste_group": "Biodegradable",
+                "confidence": "0%",
+                "confidence_score": 0.0,
+                "top_predictions": [],
+                "message": "Freshness model is strictly trained on whole apples, bananas, and oranges. For cooked foods or other produce, inspect manually or route to composting.",
+                "explanation": "To prevent false predictions, the freshness model rejects food items outside its validated training categories.",
+                "recommendation": "If food is spoiled, route directly to organic composting.",
+                "quality_details": quality_check,
+                "model": "FoodCovering Category Guard",
+                "supported": False,
+                "disclaimer": DISCLAIMER_TEXT
+            }
 
         # =====================================================================
         # ROUTE 3: AUTO DETECT MODE (Smart Routing)
         # 1. Primary Classifier: Run Waste / Material Classifier first.
         # 2. If non-food material detected -> Output Waste Result directly.
-        # 3. If food item detected:
-        #    - Check if it matches supported fruit freshness model.
+        # 3. If food_waste detected:
+        #    - Check if it matches supported whole fruit.
         #    - If yes -> Output Food Freshness Result.
-        #    - If no (e.g. food leftovers/waste) -> Output Food Waste (Compost).
-        # 4. If neither model is confident -> Return UNKNOWN / UNCERTAIN.
+        #    - If no -> Output Food Waste directly.
+        # 4. If uncertain -> Return UNCERTAIN. Zero forced fruits.
         # =====================================================================
         waste_res = self.waste_classifier.predict(pil_img)
         waste_class = waste_res.get("predicted_class", "")
         waste_conf = waste_res.get("confidence_score", 0.0)
 
-        # Check for non-food waste classes (plastics, metals, papers, e-waste, leaves, wood)
+        # Non-fruit waste classes
         non_fruit_classes = [
             "metal_cans", "plastic_bottles", "plastic_bags",
             "paper_waste", "wood_waste", "ewaste", "leaf_waste"
         ]
 
-        if waste_class in non_fruit_classes and waste_conf >= 0.40:
+        if waste_class in non_fruit_classes and waste_conf >= 0.45:
             waste_res["quality_details"] = quality_check
             return waste_res
 
-        # Step 2: Food Waste vs Supported Fresh Fruit Recognition
-        if waste_class == "food_waste":
-            inspect_res = self.food_inspector.check_fruit_and_waste(pil_img)
-            # Only route to Freshness model if ImageNet strongly confirms a whole fruit (apple, orange, banana)
-            if inspect_res["is_fruit"] and inspect_res["fruit_conf"] >= 0.20:
+        # Food item detected
+        if waste_class == "food_waste" and waste_conf >= 0.45:
+            inspect_res = self.food_inspector.check_is_fruit(pil_img)
+            if inspect_res["is_fruit"] and inspect_res["fruit_conf"] >= 0.40:
                 fresh_res = self.freshness_classifier.predict(pil_img)
                 fresh_res["quality_details"] = quality_check
                 return fresh_res
             else:
-                # Confidently Organic Food Waste! Return the enhanced food waste result directly!
+                # Organic food waste: return real food waste result directly
                 waste_res["quality_details"] = quality_check
                 return waste_res
 
-        # Step 3: If waste classifier was uncertain on material, check with FoodInspector:
-        inspect_res = self.food_inspector.check_fruit_and_waste(pil_img)
-        if inspect_res["is_fruit"] and inspect_res["fruit_conf"] >= 0.20:
+        # If waste classifier was uncertain, check if it's a prominent fruit
+        inspect_res = self.food_inspector.check_is_fruit(pil_img)
+        if inspect_res["is_fruit"] and inspect_res["fruit_conf"] >= 0.45:
             fresh_res = self.freshness_classifier.predict(pil_img)
             fresh_res["quality_details"] = quality_check
             return fresh_res
-        elif inspect_res.get("subtype_name"):
-            # Recognized as food waste subtype despite generic waste uncertainty
-            waste_res["status"] = "SUCCESS"
-            waste_res["predicted_class"] = "food_waste"
-            waste_res["displayName"] = inspect_res["subtype_name"]
-            waste_res["detected_item"] = inspect_res["subtype_name"]
-            waste_res["quality_details"] = quality_check
-            return waste_res
 
-        # Low confidence on both models -> UNKNOWN / UNCERTAIN
+        # Low confidence on both models -> UNCERTAIN (Zero fruit fallback)
         return {
             "status": "UNCERTAIN",
             "mode": "auto",
@@ -898,10 +828,11 @@ class AIRouter:
             "item": "Unknown Item",
             "category": "Unknown / Unsupported",
             "waste_group": "Unknown",
-            "confidence": f"{round(max(waste_conf, 0.40) * 100, 1)}%",
-            "confidence_score": round(max(waste_conf, 0.40), 4),
+            "confidence": f"{round(max(waste_conf, 0.20) * 100, 1)}%",
+            "confidence_score": round(max(waste_conf, 0.20), 4),
+            "top_predictions": waste_res.get("top_predictions", []),
             "recommendation": "The AI could not reliably classify this item.",
-            "message": "The AI could not reliably classify this item.",
+            "explanation": "Image features did not match any trained waste or fresh produce category with sufficient certainty.",
             "suggestions": [
                 "Use better lighting",
                 "Move closer to the item",
@@ -919,7 +850,6 @@ class AIRouter:
 # Global singleton router instance
 router = AIRouter()
 
-# Compatibility wrapper for existing API imports
 class AnalyzerCompat:
     def __init__(self, router_instance):
         self.router = router_instance
