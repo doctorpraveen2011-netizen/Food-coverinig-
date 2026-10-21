@@ -1931,6 +1931,22 @@ class Database {
     this.save();
   }
 
+  public addAiFeedback(feedback: any) {
+    if (!this.data.aiFeedbackQueue) {
+      this.data.aiFeedbackQueue = [];
+    }
+    this.data.aiFeedbackQueue.unshift(feedback);
+    if (this.data.aiFeedbackQueue.length > 500) {
+      this.data.aiFeedbackQueue.pop();
+    }
+    this.save();
+    return feedback;
+  }
+
+  public getAiFeedbackQueue() {
+    return this.data.aiFeedbackQueue || [];
+  }
+
   public getUnifiedAiStats(userId?: string) {
     const list = this.listAiAnalyses(userId ? { userId } : undefined);
     const total = list.length;

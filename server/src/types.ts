@@ -297,7 +297,44 @@ export interface AiAnalysisRecord {
   gradcam_image?: string;
   image_quality?: string;
   sensor_telemetry?: any;
+  detected_objects?: Array<{
+    id: string;
+    label: string;
+    detector_category?: string;
+    confidence: number;
+    confidence_pct: string;
+    bbox: number[];
+    bbox_norm?: number[];
+    category: string;
+    waste_group: string;
+    processing_type: string;
+    recommendation: string;
+    is_food?: boolean;
+    low_confidence?: boolean;
+  }>;
+  scene_summary?: {
+    total_objects: number;
+    distinct_categories: string[];
+    waste_groups_present: string[];
+    is_mixed_stream: boolean;
+    segregation_guidance: string;
+  };
+  low_confidence?: boolean;
+  guidance_note?: string;
   created_at: string;
   timestamp: number;
+}
+
+export interface AiFeedbackRecord {
+  id: string;
+  analysis_id: string;
+  user_id?: string;
+  is_correct: boolean;
+  predicted_class: string;
+  corrected_category?: string;
+  notes?: string;
+  image?: string;
+  status: 'pending_review' | 'approved' | 'rejected';
+  created_at: string;
 }
 

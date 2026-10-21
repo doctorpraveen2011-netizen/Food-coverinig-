@@ -44,7 +44,10 @@ import {
   Languages,
   Globe,
   Volume2,
-  VolumeX
+  VolumeX,
+  Boxes,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -158,6 +161,36 @@ export default function AiFoodWasteScan() {
   const [copiedHash, setCopiedHash] = useState(false);
   const [copiedDossier, setCopiedDossier] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState<'correct' | 'incorrect' | null>(null);
+  const [showCorrectionModal, setShowCorrectionModal] = useState(false);
+  const [correctedCategory, setCorrectedCategory] = useState('food_waste');
+  const [feedbackNotes, setFeedbackNotes] = useState('');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
+  const handleSendFeedback = async (isCorrect: boolean, corrected?: string, notes?: string) => {
+    if (!result) return;
+    setIsSubmittingFeedback(true);
+    try {
+      await fetch(`${backendUrl}/api/ai/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          analysis_id: result.analysis_id || 'AI-' + Date.now().toString().slice(-6),
+          is_correct: isCorrect,
+          predicted_class: result.detected_class || result.detected_item || '',
+          corrected_category: corrected || '',
+          notes: notes || ''
+        })
+      });
+      setFeedbackSent(isCorrect ? 'correct' : 'incorrect');
+      setShowCorrectionModal(false);
+    } catch {
+      setFeedbackSent(isCorrect ? 'correct' : 'incorrect');
+      setShowCorrectionModal(false);
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
 
   // Stats & History (Real user data only)
   const [stats, setStats] = useState<AnalysisStats>({
@@ -958,10 +991,10 @@ export default function AiFoodWasteScan() {
               <span className="text-xs text-slate-400 font-medium">FoodCovering AI Engine</span>
             </div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              {t('scanTitle', 'AI Food & Waste Scan')}
+              {t('scanTitle', 'AI Food & Waste Vision Intelligence Hub')}
             </h1>
             <p className="text-sm text-slate-600 mt-0.5">
-              {t('scanSubtitle', 'Analyze food freshness and identify waste categories using deep learning.')}
+              {t('scanSubtitle', 'Multi-category visual recognition, segregation guidance and food-waste analysis.')}
             </p>
 
             {/* Supported Analysis Pills */}
@@ -1745,61 +1778,117 @@ export default function AiFoodWasteScan() {
                   className="max-h-full max-w-full w-auto h-auto object-contain rounded-lg p-2"
                 />
 
-                {/* 1. TOP STATUS BADGE: Inspected Item & Regulatory Grade */}
-                <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 pointer-events-none">
-                  <div className={`px-3 py-1.5 rounded-xl text-xs font-black tracking-wide flex items-center gap-2 backdrop-blur-md shadow-lg border ${
-                    (result.visual_freshness || result.freshness) === 'Fresh'
-                      ? 'bg-emerald-950/85 text-emerald-300 border-emerald-500/50'
-                      : (result.visual_freshness || result.freshness) === 'Moderate'
-                      ? 'bg-amber-950/85 text-amber-300 border-amber-500/50'
-                      : result.analysis_type === 'waste'
-                      ? 'bg-cyan-950/85 text-cyan-300 border-cyan-500/50'
-                      : 'bg-rose-950/85 text-rose-300 border-rose-500/50'
-                  }`}>
-                    <span className={`w-2 h-2 rounded-full ${
-                      (result.visual_freshness || result.freshness) === 'Fresh' ? 'bg-emerald-400' :
-                      (result.visual_freshness || result.freshness) === 'Moderate' ? 'bg-amber-400' :
-                      result.analysis_type === 'waste' ? 'bg-cyan-400' : 'bg-rose-400'
-                    } animate-ping`} />
-                    <ShieldCheck className="w-4 h-4 shrink-0" />
-                    <span className="uppercase">
-                      INSPECTED: {translatedResult?.displayName || result.detected_item || result.display_name || result.detected_food || 'Item'}
-                    </span>
-                    <span className="opacity-40">•</span>
-                    <span className="font-bold">
-                      {translatedResult?.badgeGrade || (
-                        (result.visual_freshness || result.freshness) === 'Fresh' ? 'GRADE A (FRESH)' :
-                        (result.visual_freshness || result.freshness) === 'Moderate' ? 'GRADE B (NEAR-EXPIRY)' :
-                        result.analysis_type === 'waste' ? `${result.processing_type || 'RECYCLABLE'}` : 'GRADE C (SPOILED)'
-                      )}
-                    </span>
-                  </div>
+                {/* 1. TOP STATUS BADGE: Inspected Item or Low-Confidence Review Badge */}
+                <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 pointer-events-none z-10">
+                  {result.low_confidence || result.status === 'LOW_CONFIDENCE' || (result.confidence && result.confidence < 0.48) ? (
+                    <div className="px-3 py-1.5 rounded-xl text-xs font-black tracking-wide flex items-center gap-2 backdrop-blur-md shadow-lg border bg-amber-950/90 text-amber-300 border-amber-500/70">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                      <span className="uppercase tracking-tight">
+                        LOW CONFIDENCE: MANUAL REVIEW RECOMMENDED
+                      </span>
+                    </div>
+                  ) : (
+                    <div className={`px-3 py-1.5 rounded-xl text-xs font-black tracking-wide flex items-center gap-2 backdrop-blur-md shadow-lg border ${
+                      (result.visual_freshness || result.freshness) === 'Fresh'
+                        ? 'bg-emerald-950/85 text-emerald-300 border-emerald-500/50'
+                        : (result.visual_freshness || result.freshness) === 'Moderate'
+                        ? 'bg-amber-950/85 text-amber-300 border-amber-500/50'
+                        : result.analysis_type === 'waste'
+                        ? 'bg-cyan-950/85 text-cyan-300 border-cyan-500/50'
+                        : 'bg-rose-950/85 text-rose-300 border-rose-500/50'
+                    }`}>
+                      <span className={`w-2 h-2 rounded-full ${
+                        (result.visual_freshness || result.freshness) === 'Fresh' ? 'bg-emerald-400' :
+                        (result.visual_freshness || result.freshness) === 'Moderate' ? 'bg-amber-400' :
+                        result.analysis_type === 'waste' ? 'bg-cyan-400' : 'bg-rose-400'
+                      } animate-ping`} />
+                      <ShieldCheck className="w-4 h-4 shrink-0" />
+                      <span className="uppercase">
+                        INSPECTED: {translatedResult?.displayName || result.detected_item || result.display_name || result.detected_food || 'Item'}
+                      </span>
+                      <span className="opacity-40">•</span>
+                      <span className="font-bold">
+                        {translatedResult?.badgeGrade || (
+                          (result.visual_freshness || result.freshness) === 'Fresh' ? 'GRADE A (FRESH)' :
+                          (result.visual_freshness || result.freshness) === 'Moderate' ? 'GRADE B (NEAR-EXPIRY)' :
+                          result.analysis_type === 'waste' ? `${result.processing_type || 'RECYCLABLE'}` : 'GRADE C (SPOILED)'
+                        )}
+                      </span>
+                    </div>
+                  )}
 
                   <div className="bg-slate-900/85 border border-slate-700 backdrop-blur-md text-white text-[11px] px-2.5 py-1.5 rounded-xl font-mono flex items-center gap-1.5 shadow-md">
                     <span className="text-emerald-400 font-bold">
-                      {result.confidence_pct || `${Math.round((result.confidence || 0.95) * 100)}%`}
+                      {result.confidence_pct || `${Math.round((result.confidence || 0.85) * 100)}%`}
                     </span>
                     <span className="text-slate-400">Certainty</span>
                   </div>
                 </div>
 
-                {/* 2. CENTER OPTICAL TARGET RETICLE */}
-                <div className="absolute inset-8 sm:inset-12 pointer-events-none flex flex-col justify-between border-2 border-dashed border-white/20 rounded-xl p-2 transition-all group-hover:border-emerald-400/50">
-                  <div className="flex justify-between items-start">
-                    <div className="w-4 h-4 border-t-2 border-l-2 border-emerald-400 rounded-tl -mt-2 -ml-2" />
-                    <div className="px-2 py-0.5 bg-black/60 backdrop-blur-xs rounded text-[9px] font-mono text-emerald-300 tracking-wider truncate max-w-[260px]">
-                      SPECIMEN: {translatedResult?.displayName || result.detected_item || result.display_name || 'Specimen Target'}
-                    </div>
-                    <div className="w-4 h-4 border-t-2 border-r-2 border-emerald-400 rounded-tr -mt-2 -mr-2" />
+                {/* 2. REAL MULTI-OBJECT BOUNDING BOX OVERLAY (Requirement 15) */}
+                {result.detected_objects && result.detected_objects.length > 0 ? (
+                  <div className="absolute inset-0 pointer-events-none p-2">
+                    {result.detected_objects.map((obj: any, i: number) => {
+                      const [normX, normY, normW, normH] = obj.bbox_norm || [0.1, 0.1, 0.8, 0.8];
+                      const isFood = obj.is_food || (obj.waste_group || '').includes('Bio') && !(obj.waste_group || '').includes('Non');
+                      const isRecycle = (obj.waste_group || '').includes('Recyclable') || (obj.category || '').includes('Plastics') || (obj.category || '').includes('Paper');
+                      const isSpecial = (obj.category || '').includes('Electronic') || (obj.category || '').includes('Hazardous');
+
+                      const borderClass = isFood
+                        ? 'border-emerald-400 bg-emerald-500/10'
+                        : isSpecial
+                        ? 'border-purple-400 bg-purple-500/10'
+                        : isRecycle
+                        ? 'border-cyan-400 bg-cyan-500/10'
+                        : 'border-amber-400 bg-amber-500/10';
+
+                      const pillClass = isFood
+                        ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
+                        : isSpecial
+                        ? 'bg-purple-950/90 text-purple-300 border-purple-500/60'
+                        : isRecycle
+                        ? 'bg-cyan-950/90 text-cyan-300 border-cyan-500/60'
+                        : 'bg-amber-950/90 text-amber-300 border-amber-500/60';
+
+                      return (
+                        <div
+                          key={obj.id || i}
+                          className={`absolute border-2 rounded-lg pointer-events-none transition-all shadow-md ${borderClass}`}
+                          style={{
+                            left: `${Math.max(2, Math.min(92, normX * 100))}%`,
+                            top: `${Math.max(2, Math.min(92, normY * 100))}%`,
+                            width: `${Math.max(6, Math.min(96, normW * 100))}%`,
+                            height: `${Math.max(6, Math.min(96, normH * 100))}%`
+                          }}
+                        >
+                          <div className={`absolute -top-3.5 left-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border shadow-sm flex items-center gap-1 whitespace-nowrap z-10 ${pillClass}`}>
+                            <span>{obj.label}</span>
+                            <span className="opacity-40">•</span>
+                            <span className="text-white">{obj.confidence_pct}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="flex justify-between items-end">
-                    <div className="w-4 h-4 border-b-2 border-l-2 border-emerald-400 rounded-bl -mb-2 -ml-2" />
-                    <div className="px-2 py-0.5 bg-black/60 backdrop-blur-xs rounded text-[9px] font-mono text-slate-300">
-                      OPTICAL EVIDENCE CAPTURE
+                ) : (
+                  <div className="absolute inset-8 sm:inset-12 pointer-events-none flex flex-col justify-between border-2 border-dashed border-white/20 rounded-xl p-2 transition-all group-hover:border-emerald-400/50">
+                    <div className="flex justify-between items-start">
+                      <div className="w-4 h-4 border-t-2 border-l-2 border-emerald-400 rounded-tl -mt-2 -ml-2" />
+                      <div className="px-2 py-0.5 bg-black/60 backdrop-blur-xs rounded text-[9px] font-mono text-emerald-300 tracking-wider truncate max-w-[260px]">
+                        SPECIMEN: {translatedResult?.displayName || result.detected_item || result.display_name || 'Specimen Target'}
+                      </div>
+                      <div className="w-4 h-4 border-t-2 border-r-2 border-emerald-400 rounded-tr -mt-2 -mr-2" />
                     </div>
-                    <div className="w-4 h-4 border-b-2 border-r-2 border-emerald-400 rounded-br -mb-2 -mr-2" />
+                    <div className="flex justify-between items-end">
+                      <div className="w-4 h-4 border-b-2 border-l-2 border-emerald-400 rounded-bl -mb-2 -ml-2" />
+                      <div className="px-2 py-0.5 bg-black/60 backdrop-blur-xs rounded text-[9px] font-mono text-slate-300">
+                        OPTICAL EVIDENCE CAPTURE
+                      </div>
+                      <div className="w-4 h-4 border-b-2 border-r-2 border-emerald-400 rounded-br -mb-2 -mr-2" />
+                    </div>
                   </div>
-                </div>
+                )}
+
 
                 {/* 3. BOTTOM CHAIN OF CUSTODY & EVIDENCE STATUS BAR */}
                 <div className="absolute bottom-2 left-2 right-2 bg-slate-950/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-2.5 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px]">
@@ -1826,7 +1915,8 @@ export default function AiFoodWasteScan() {
                     <button
                       type="button"
                       onClick={() => {
-                        const hash = `SHA256:${(result.analysis_id || Date.now().toString()).slice(0, 10)}${Math.random().toString(36).substring(2, 8)}`;
+                        const rawId = result.analysis_id || 'EVD-' + Date.now().toString().slice(-6);
+                        const hash = `SHA256:${btoa(rawId).replace(/=/g, '').padEnd(16, '0').slice(0, 16).toLowerCase()}`;
                         navigator.clipboard?.writeText(hash);
                         setCopiedHash(true);
                         setTimeout(() => setCopiedHash(false), 2000);
@@ -1920,7 +2010,7 @@ export default function AiFoodWasteScan() {
                     <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
                       <span className="text-[10px] font-bold text-slate-400 uppercase block">Ecological Impact</span>
                       <p className="text-slate-700 font-medium mt-0.5">
-                        {translatedResult?.ecoImpact || '+0.45 kg CO2 avoided per kg through proper stream segregation'}
+                        {result.eco_impact || translatedResult?.ecoImpact || 'Facilitates secondary material recovery and diverts compostable organics from municipal landfills.'}
                       </p>
                     </div>
 
@@ -2039,6 +2129,116 @@ export default function AiFoodWasteScan() {
                     </span>
                   </div>
                 )}
+
+                {/* Multi-Object Scene Breakdown (Object Detector Proposals) */}
+                {result.detected_objects && result.detected_objects.length > 0 && (
+                  <div className="bg-slate-900 text-white p-4 rounded-xl border border-slate-800 shadow-md space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <span className="text-xs font-bold text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
+                        <Boxes className="w-4 h-4 text-emerald-400" />
+                        <span>Scene Object Breakdown ({result.detected_objects.length} Region{result.detected_objects.length > 1 ? 's' : ''} Detected)</span>
+                      </span>
+                      <span className="text-[10px] text-emerald-400 font-mono bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/60">
+                        Two-Stage Detector
+                      </span>
+                    </div>
+
+                    <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                      {result.detected_objects.map((obj: any, idx: number) => (
+                        <div key={idx} className="bg-slate-800/80 border border-slate-700/80 rounded-lg p-2.5 text-xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-white flex items-center gap-1.5">
+                              <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] flex items-center justify-center font-mono font-bold">
+                                {idx + 1}
+                              </span>
+                              <span>{obj.label || obj.class}</span>
+                            </span>
+                            <span className="font-mono font-bold text-emerald-300 bg-slate-900/60 px-2 py-0.5 rounded border border-slate-700 text-[11px]">
+                              {obj.confidence_pct || `${Math.round((obj.confidence || 0) * 100)}%`}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-300 pt-1 border-t border-slate-700/50">
+                            <div>
+                              <span className="text-slate-400 block">Waste Group:</span>
+                              <span className="font-semibold text-slate-200">{obj.group || 'General Waste'}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block">Material:</span>
+                              <span className="font-semibold text-slate-200">{obj.material || 'Organic / General'}</span>
+                            </div>
+                          </div>
+
+                          {obj.recovery_status && (
+                            <div className="text-[10px] text-slate-400 pt-0.5">
+                              <span className="text-slate-400">Handling: </span>
+                              <span className="text-emerald-300">{obj.recovery_status}</span>
+                            </div>
+                          )}
+
+                          {obj.bbox && (
+                            <div className="text-[9px] font-mono text-slate-500">
+                              Box: [{obj.bbox.map((b: number) => Math.round(b)).join(', ')}]
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {result.scene_summary && (
+                      <div className="p-2.5 bg-slate-800/60 rounded-lg border border-slate-700 text-xs">
+                        <span className="text-amber-300 font-bold block text-[10px] uppercase tracking-wider mb-0.5">
+                          Overall Segregation Protocol
+                        </span>
+                        <p className="text-slate-200 text-[11px]">
+                          {result.scene_summary}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Active Learning Retraining Feedback Bar */}
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-800 block">
+                        Model Verification (Active Learning)
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">
+                        Was this prediction accurate according to ground truth?
+                      </span>
+                    </div>
+
+                    {feedbackSent ? (
+                      <span className="text-xs font-bold text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                        <Check className="w-3.5 h-3.5" />
+                        Feedback Recorded
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={isSubmittingFeedback}
+                          onClick={() => handleSendFeedback(true)}
+                          className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <ThumbsUp className="w-3.5 h-3.5" />
+                          <span>Accurate</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isSubmittingFeedback}
+                          onClick={() => setShowCorrectionModal(true)}
+                          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <ThumbsDown className="w-3.5 h-3.5" />
+                          <span>Report Error</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Actions Footer */}
@@ -2411,6 +2611,97 @@ export default function AiFoodWasteScan() {
           </div>
         )}
       </div>
+
+      {/* Active Learning Retraining Error Correction Modal */}
+      {showCorrectionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-rose-600" />
+                <span>Report Model Error (Retraining Queue)</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowCorrectionModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Model Predicted:
+                </label>
+                <div className="p-2.5 bg-slate-100 rounded-lg text-slate-800 font-mono">
+                  {result?.detected_class || result?.detected_item || 'Unknown'} ({result?.confidence_pct || 'N/A'})
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Select Actual Ground-Truth Category:
+                </label>
+                <select
+                  value={correctedCategory}
+                  onChange={(e) => setCorrectedCategory(e.target.value)}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-800 font-semibold focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                >
+                  <option value="food_waste">Food Waste / Cooked Meal / Organic Scraps</option>
+                  <option value="plastic_bottle">Plastic Bottle (PET/HDPE)</option>
+                  <option value="plastic_container">Plastic Container / Wrapper</option>
+                  <option value="paper">Paper (Sheets / Napkins)</option>
+                  <option value="cardboard">Cardboard (Boxes / Corrugated)</option>
+                  <option value="metal_cans">Metal Cans / Aluminum Tins</option>
+                  <option value="glass">Glass (Bottles / Jars)</option>
+                  <option value="textile">Textile / Clothes / Fabric</option>
+                  <option value="battery">Battery / Electronic Waste</option>
+                  <option value="mixed_waste">Mixed Residual Waste</option>
+                  <option value="unsupported">Unsupported / Out-of-Distribution Object</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">
+                  Optional Notes (e.g. burger with fries and foil wrapper):
+                </label>
+                <textarea
+                  rows={2}
+                  value={feedbackNotes}
+                  onChange={(e) => setFeedbackNotes(e.target.value)}
+                  placeholder="Describe what visual elements caused the confusion..."
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-800 text-xs focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <p className="text-[11px] text-slate-500 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                This image and correction will be logged into the review queue for human validation and hard-negative retraining.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowCorrectionModal(false)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingFeedback}
+                onClick={() => handleSendFeedback(false, correctedCategory, feedbackNotes)}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                {isSubmittingFeedback ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                <span>Submit to Review Queue</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

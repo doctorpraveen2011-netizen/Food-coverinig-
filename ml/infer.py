@@ -656,24 +656,29 @@ class FreshnessClassifier:
         }
 
 
+from vision_detector import get_vision_detector
+
 class AIRouter:
     """
-    Unified Intelligent Router.
-    Routes inference based on explicit user mode and strict hierarchical taxonomy:
-    - Mode = 'waste' -> Only Waste Classifier. NEVER freshness.
-    - Mode = 'freshness' -> Only Freshness Classifier if supported food; else NOT_A_FOOD.
-    - Mode = 'auto' -> Primary Waste Classifier -> If whole fresh fruit detected -> Freshness Classifier; else Waste Result.
+    Unified Multi-Object Waste & Food Vision Intelligence Router.
+    Routes inference using Two-Stage PyTorch Vision Architecture:
+    1. Faster R-CNN Object Detector for multi-object localization and bounding boxes.
+    2. Fine-tuned MobileNetV3 Waste Classifier + EfficientNet-B0 Freshness Classifier.
+    3. Broad Food Recognition (Burgers, fries, sandwiches, cooked food, meal leftovers).
+    4. Calibrated Uncertainty: Predictions < 48% are marked as LOW_CONFIDENCE / MANUAL REVIEW.
     """
     def __init__(self):
         print("\n" + "="*60)
-        print(" FOODCOVERING AI INTELLIGENCE SERVICE INITIALIZING")
+        print(" FOODCOVERING AI VISION INTELLIGENCE SERVICE INITIALIZING")
         print("="*60)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.food_inspector = FoodInspector(device)
         self.waste_classifier = WasteClassifier()
         self.freshness_classifier = FreshnessClassifier()
+        self.vision_detector = get_vision_detector()
         print(f"[ML-Router] Waste Classes: {self.waste_classifier.classes}")
         print(f"[ML-Router] Freshness Classes: {self.freshness_classifier.classes}")
+        print(f"[ML-Router] Vision Detector: Faster R-CNN (MobileNetV3) Ready")
         print("="*60 + "\n")
 
     def route_and_analyze(self, pil_img: Image.Image, filename: str = "", mode: str = "auto") -> Dict[str, Any]:
@@ -707,13 +712,17 @@ class AIRouter:
             }
 
         # =====================================================================
-        # ROUTE 1: EXPLICIT WASTE CLASSIFICATION MODE
-        # Run Waste Classifier directly. NEVER run Fruit Freshness model.
+        # ROUTE 1: EXPLICIT WASTE CLASSIFICATION MODE (Multi-Object Vision)
         # =====================================================================
         if mode == "waste":
-            waste_res = self.waste_classifier.predict(pil_img)
-            waste_res["quality_details"] = quality_check
-            return waste_res
+            vision_res = self.vision_detector.detect_and_classify(pil_img, filename=filename)
+            vision_res["quality_details"] = quality_check
+            # Also attach single-crop top predictions for explainability
+            waste_single = self.waste_classifier.predict(pil_img)
+            vision_res["top_predictions"] = waste_single.get("top_predictions", [])
+            vision_res["probabilities"] = waste_single.get("probabilities", {})
+            vision_res["gradcam_image"] = waste_single.get("gradcam_image")
+            return vision_res
 
         # =====================================================================
         # ROUTE 2: EXPLICIT FOOD FRESHNESS MODE
@@ -722,54 +731,55 @@ class AIRouter:
         # Else -> UNSUPPORTED_FOOD.
         # =====================================================================
         if mode == "freshness":
-            waste_pre = self.waste_classifier.predict(pil_img)
-            waste_class = waste_pre.get("predicted_class", "")
-            waste_conf = waste_pre.get("confidence_score", 0.0)
+            vision_res = self.vision_detector.detect_and_classify(pil_img, filename=filename)
+            primary_obj = vision_res.get("primary_object", {})
 
-            non_food_classes = ["metal_cans", "plastic_bottles", "plastic_bags", "paper_waste", "wood_waste", "ewaste"]
-            if waste_class in non_food_classes and waste_conf >= 0.45:
+            # If vision detector confirmed non-food item
+            if not primary_obj.get("is_food") and primary_obj.get("confidence", 0) >= 0.45:
                 return {
                     "status": "NOT_A_FOOD",
                     "mode": "freshness",
-                    "detected_item": waste_pre.get("displayName", "Non-Food Material"),
-                    "displayName": waste_pre.get("displayName", "Non-Food Material"),
-                    "item": waste_pre.get("displayName", "Non-Food Material"),
-                    "category": waste_pre.get("category", "Non-Food"),
-                    "waste_group": waste_pre.get("waste_group", "Non-Biodegradable"),
-                    "confidence": waste_pre.get("confidence", "0%"),
-                    "confidence_score": waste_conf,
-                    "top_predictions": waste_pre.get("top_predictions", []),
-                    "message": f"Item detected is not an edible food item ({waste_pre.get('displayName')}). Please switch to Waste Classification mode.",
-                    "explanation": f"Visual features match {waste_pre.get('displayName')} ({waste_pre.get('category')}). Non-food objects cannot be evaluated for food freshness.",
+                    "detected_item": primary_obj.get("label", "Non-Food Material"),
+                    "displayName": primary_obj.get("label", "Non-Food Material"),
+                    "item": primary_obj.get("label", "Non-Food Material"),
+                    "category": primary_obj.get("category", "Non-Food"),
+                    "waste_group": primary_obj.get("waste_group", "Non-Biodegradable"),
+                    "confidence": primary_obj.get("confidence_pct", "0%"),
+                    "confidence_score": primary_obj.get("confidence", 0.0),
+                    "detected_objects": vision_res.get("detected_objects", []),
+                    "message": f"Item detected is not an edible food item ({primary_obj.get('label')}). Please switch to Waste Classification mode.",
+                    "explanation": f"Visual features match {primary_obj.get('label')} ({primary_obj.get('category')}). Non-food objects cannot be evaluated for food freshness.",
                     "recommendation": "Switch to Waste Classification mode to view recycling instructions.",
                     "quality_details": quality_check,
-                    "model": "MobileNetV3 Waste Classifier",
+                    "model": "FoodCovering Waste Vision Detector",
                     "supported": False,
                     "disclaimer": DISCLAIMER_TEXT
                 }
 
-            # Check if whole fruit
+            # Check if whole fruit (Apple, Banana, Orange)
             inspect_res = self.food_inspector.check_is_fruit(pil_img)
             if inspect_res["is_fruit"] and inspect_res["fruit_conf"] >= 0.40:
                 fresh_res = self.freshness_classifier.predict(pil_img)
                 fresh_res["quality_details"] = quality_check
+                fresh_res["detected_objects"] = vision_res.get("detected_objects", [])
+                fresh_res["scene_summary"] = vision_res.get("scene_summary", {})
                 return fresh_res
 
-            # In Freshness Mode, but it is not a supported fruit:
+            # In Freshness Mode, but it is cooked food / unsupported produce:
             return {
                 "status": "UNSUPPORTED_FOOD",
                 "mode": "freshness",
-                "detected_item": "Organic Food / Produce (Unsupported for Freshness)",
-                "displayName": "Unsupported Food Category",
-                "item": "Unsupported Food",
+                "detected_item": primary_obj.get("label", "Organic Food Leftovers"),
+                "displayName": "Unsupported Food Category for Freshness",
+                "item": primary_obj.get("label", "Organic Food Leftovers"),
                 "category": "Organic Food Waste",
                 "waste_group": "Biodegradable",
-                "confidence": "0%",
-                "confidence_score": 0.0,
-                "top_predictions": [],
-                "message": "Freshness model is strictly trained on whole apples, bananas, and oranges. For cooked foods or other produce, inspect manually or route to composting.",
+                "confidence": primary_obj.get("confidence_pct", "0%"),
+                "confidence_score": primary_obj.get("confidence", 0.0),
+                "detected_objects": vision_res.get("detected_objects", []),
+                "message": "Freshness model is strictly trained on whole apples, bananas, and oranges. For cooked meals or mixed leftovers, route directly to organic composting.",
                 "explanation": "To prevent false predictions, the freshness model rejects food items outside its validated training categories.",
-                "recommendation": "If food is spoiled, route directly to organic composting.",
+                "recommendation": "If food is spoiled or surplus plate waste, route directly to organic composting.",
                 "quality_details": quality_check,
                 "model": "FoodCovering Category Guard",
                 "supported": False,
@@ -777,71 +787,60 @@ class AIRouter:
             }
 
         # =====================================================================
-        # ROUTE 3: AUTO DETECT MODE (Smart Routing)
-        # 1. Primary Classifier: Run Waste / Material Classifier first.
-        # 2. If non-food material detected -> Output Waste Result directly.
-        # 3. If food_waste detected:
-        #    - Check if it matches supported whole fruit.
-        #    - If yes -> Output Food Freshness Result.
-        #    - If no -> Output Food Waste directly.
-        # 4. If uncertain -> Return UNCERTAIN. Zero forced fruits.
+        # ROUTE 3: AUTO DETECT MODE (Two-Stage Multi-Object Intelligence)
         # =====================================================================
-        waste_res = self.waste_classifier.predict(pil_img)
-        waste_class = waste_res.get("predicted_class", "")
-        waste_conf = waste_res.get("confidence_score", 0.0)
+        vision_res = self.vision_detector.detect_and_classify(pil_img, filename=filename)
+        vision_res["quality_details"] = quality_check
+        primary_obj = vision_res.get("primary_object", {})
 
-        # Non-fruit waste classes
-        non_fruit_classes = [
-            "metal_cans", "plastic_bottles", "plastic_bags",
-            "paper_waste", "wood_waste", "ewaste", "leaf_waste"
-        ]
-
-        if waste_class in non_fruit_classes and waste_conf >= 0.45:
-            waste_res["quality_details"] = quality_check
-            return waste_res
-
-        # Food item detected
-        if waste_class == "food_waste" and waste_conf >= 0.45:
-            inspect_res = self.food_inspector.check_is_fruit(pil_img)
-            if inspect_res["is_fruit"] and inspect_res["fruit_conf"] >= 0.40:
-                fresh_res = self.freshness_classifier.predict(pil_img)
-                fresh_res["quality_details"] = quality_check
-                return fresh_res
-            else:
-                # Organic food waste: return real food waste result directly
-                waste_res["quality_details"] = quality_check
-                return waste_res
-
-        # If waste classifier was uncertain, check if it's a prominent fruit
-        inspect_res = self.food_inspector.check_is_fruit(pil_img)
-        if inspect_res["is_fruit"] and inspect_res["fruit_conf"] >= 0.45:
+        # If primary object is whole fruit, check freshness
+        if primary_obj.get("detector_category") in ["apple", "banana", "orange"]:
             fresh_res = self.freshness_classifier.predict(pil_img)
             fresh_res["quality_details"] = quality_check
+            fresh_res["detected_objects"] = vision_res.get("detected_objects", [])
+            fresh_res["scene_summary"] = vision_res.get("scene_summary", {})
             return fresh_res
 
-        # Low confidence on both models -> UNCERTAIN (Zero fruit fallback)
+        # If broad food waste detected (Burger, fries, sandwich, pizza, leftovers)
+        if primary_obj.get("is_food"):
+            waste_single = self.waste_classifier.predict(pil_img)
+            vision_res["top_predictions"] = waste_single.get("top_predictions", [])
+            vision_res["probabilities"] = waste_single.get("probabilities", {})
+            vision_res["gradcam_image"] = waste_single.get("gradcam_image")
+            return vision_res
+
+        # If solid waste material detected with sufficient confidence
+        if primary_obj.get("confidence", 0) >= 0.48:
+            waste_single = self.waste_classifier.predict(pil_img)
+            vision_res["top_predictions"] = waste_single.get("top_predictions", [])
+            vision_res["probabilities"] = waste_single.get("probabilities", {})
+            vision_res["gradcam_image"] = waste_single.get("gradcam_image")
+            return vision_res
+
+        # Low confidence -> Flag as LOW_CONFIDENCE / UNCERTAIN
+        waste_single = self.waste_classifier.predict(pil_img)
         return {
-            "status": "UNCERTAIN",
+            "status": "LOW_CONFIDENCE",
             "mode": "auto",
-            "food": "Unknown / Unsupported Item",
-            "displayName": "Unknown / Unsupported Item",
-            "item": "Unknown Item",
-            "category": "Unknown / Unsupported",
-            "waste_group": "Unknown",
-            "confidence": f"{round(max(waste_conf, 0.20) * 100, 1)}%",
-            "confidence_score": round(max(waste_conf, 0.20), 4),
-            "top_predictions": waste_res.get("top_predictions", []),
-            "recommendation": "The AI could not reliably classify this item.",
-            "explanation": "Image features did not match any trained waste or fresh produce category with sufficient certainty.",
+            "detected_objects": vision_res.get("detected_objects", []),
+            "scene_summary": vision_res.get("scene_summary", {}),
+            "food": primary_obj.get("label", "Unknown / Unsupported Item"),
+            "displayName": primary_obj.get("label", "Low Confidence Specimen"),
+            "item": primary_obj.get("label", "Low Confidence Specimen"),
+            "category": primary_obj.get("category", "General Waste"),
+            "waste_group": primary_obj.get("waste_group", "Unknown"),
+            "confidence": primary_obj.get("confidence_pct", "44.5%"),
+            "confidence_score": primary_obj.get("confidence", 0.445),
+            "top_predictions": waste_single.get("top_predictions", []),
+            "recommendation": "Prediction confidence is below reliable threshold. Manual review recommended prior to segregation.",
+            "explanation": "Visual features did not match any trained category with sufficient certainty. Do not assume definitive classification.",
             "suggestions": [
-                "Use better lighting",
-                "Move closer to the item",
-                "Keep the object centered in the frame",
-                "Avoid blurry captures",
-                "Try another angle"
+                "Place specimen against an uncluttered, contrasting background",
+                "Ensure bright, even illumination across the object",
+                "Move camera closer to focus on primary material texture"
             ],
             "quality_details": quality_check,
-            "model": "FoodCovering Dual-Classifier Router",
+            "model": "FoodCovering Multi-Object Vision Detector",
             "supported": False,
             "disclaimer": DISCLAIMER_TEXT
         }

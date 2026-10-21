@@ -2468,11 +2468,15 @@ app.post(['/api/ai/analyze', '/api/v1/analyze', '/api/ai/waste/analyze', '/api/v
         category: primaryCategory,
         processing_route: processingType,
         facility_type: rule.facilityType || 'recycler',
-        eco_impact: mlData.ecoImpact || rule.ecoImpact || '+0.50 kg CO2 avoided',
+        eco_impact: mlData.ecoImpact || rule.ecoImpact || 'Diverts solid waste from open landfill dumping, recovering secondary resources.',
         probabilities: mlData.probabilities,
         gradcam_image: mlData.gradcam_image,
         image_quality: mlData.image_quality || 'good',
         sensor_telemetry: sensorTelemetry,
+        detected_objects: mlData.detected_objects || [],
+        scene_summary: mlData.scene_summary || null,
+        low_confidence: mlData.low_confidence || false,
+        guidance_note: mlData.guidance_note || '',
         created_at: nowIso,
         timestamp: Date.now()
       };
@@ -2482,7 +2486,7 @@ app.post(['/api/ai/analyze', '/api/v1/analyze', '/api/ai/waste/analyze', '/api/v
       io.emit('wasteAnalysisUpdate', record);
 
       return res.json({
-        status: 'SUCCESS',
+        status: record.low_confidence ? 'LOW_CONFIDENCE' : 'SUCCESS',
         analysis_id: record.analysis_id,
         analysis_type: 'waste',
         detected_item: detectedItemName,
@@ -2501,6 +2505,11 @@ app.post(['/api/ai/analyze', '/api/v1/analyze', '/api/ai/waste/analyze', '/api/v
         eco_impact: record.eco_impact,
         probabilities: record.probabilities,
         top_predictions: mlData.top_predictions || [],
+        detected_objects: mlData.detected_objects || [],
+        object_count: mlData.object_count || (mlData.detected_objects ? mlData.detected_objects.length : 1),
+        scene_summary: mlData.scene_summary || null,
+        low_confidence: record.low_confidence,
+        guidance_note: record.guidance_note,
         explanation: mlData.explanation || `The PyTorch waste classifier identified visual patterns matching ${detectedItemName}.`,
         image_quality: record.image_quality,
         quality_details: mlData.quality_details,
@@ -2704,7 +2713,37 @@ app.get(['/api/ai/facilities', '/api/ai/waste/facilities', '/api/waste/facilitie
     const filtered = WASTE_FACILITIES.filter(f => f.acceptedWaste.includes(wasteClass));
     return res.json({ facilities: filtered });
   }
-  return res.json({ facilities: WASTE_FACILITIES });
+// Active Learning Feedback Endpoints (Requirements 38 & 39)
+app.post('/api/ai/feedback', (req, res) => {
+  try {
+    const { analysis_id, is_correct, predicted_class, corrected_category, notes } = req.body;
+    if (!analysis_id) {
+      return res.status(400).json({ error: 'analysis_id is required' });
+    }
+    const feedbackRecord = {
+      id: 'FB-' + Date.now().toString().slice(-6),
+      analysis_id,
+      user_id: (req as any).user?.id || 'anonymous',
+      is_correct: Boolean(is_correct),
+      predicted_class: predicted_class || '',
+      corrected_category: corrected_category || '',
+      notes: notes || '',
+      status: 'pending_review',
+      created_at: new Date().toISOString()
+    };
+    db.addAiFeedback(feedbackRecord);
+    return res.json({
+      success: true,
+      message: 'Feedback recorded in active learning review queue.',
+      feedback: feedbackRecord
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to record feedback', details: err.message });
+  }
+});
+
+app.get('/api/ai/feedback', (req, res) => {
+  return res.json({ queue: db.getAiFeedbackQueue() });
 });
 
 // Live Pipeline Simulation
