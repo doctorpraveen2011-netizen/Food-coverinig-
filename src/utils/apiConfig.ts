@@ -166,3 +166,34 @@ export async function apiRequest<T>(
   }
   return await fallback();
 }
+
+/**
+ * Tests live connection to any remote backend endpoint (Render, AWS, Ngrok, or Localhost)
+ */
+export async function testBackendConnection(url: string): Promise<{
+  ok: boolean;
+  latencyMs: number;
+  error?: string;
+  service?: string;
+}> {
+  const cleanUrl = url.trim().replace(/\/+$/, '');
+  if (!cleanUrl) {
+    return { ok: false, latencyMs: 0, error: 'Empty URL provided' };
+  }
+  const start = performance.now();
+  try {
+    const res = await fetch(`${cleanUrl}/api/v1/ml/status`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(4000)
+    });
+    const latencyMs = Math.round(performance.now() - start);
+    if (res.ok) {
+      const data = await res.json();
+      return { ok: true, latencyMs, service: data.service || 'FoodCovering PyTorch Inference Server' };
+    }
+    return { ok: true, latencyMs, service: `Connected (HTTP ${res.status})` };
+  } catch (err: any) {
+    return { ok: false, latencyMs: 0, error: err?.message || 'Network unreachable or CORS blocked' };
+  }
+}
+

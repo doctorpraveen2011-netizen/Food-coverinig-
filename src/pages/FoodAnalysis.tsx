@@ -131,26 +131,6 @@ export default function FoodAnalysis() {
     }
   };
 
-  // Quick 1-click test with pre-loaded sample datasets
-  const handleSampleClick = async (samplePath: string, sampleName: string) => {
-    try {
-      setIsAnalyzing(true);
-      const cleanPath = samplePath.startsWith('/') ? `.${samplePath}` : samplePath;
-      const res = await fetch(cleanPath);
-      const blob = await res.blob();
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const dataUrl = reader.result as string;
-        setUploadedImage(dataUrl);
-        startAnalysis(dataUrl, sampleName);
-      };
-      reader.readAsDataURL(blob);
-    } catch (err) {
-      console.error('Failed to load sample image:', err);
-      setIsAnalyzing(false);
-    }
-  };
-
   const startAnalysis = async (dataUrl: string, fileName: string = '') => {
     setIsAnalyzing(true);
     setSyncNotice(null);
@@ -237,7 +217,7 @@ export default function FoodAnalysis() {
     try {
       const clientResult = await ClientAiEngine.analyze(dataUrl, {
           mode: analysisMode === 'food_freshness' ? 'freshness' : analysisMode === 'waste_segregation' ? 'waste' : 'auto',
-          filename: fileName || 'sample_analysis.jpg'
+          filename: fileName || 'scanned_item.jpg'
         });
 
         const sensorPayload = clientResult.sensor_telemetry ? {
@@ -399,58 +379,6 @@ export default function FoodAnalysis() {
                   >
                     <Camera className="w-4 h-4 text-slate-500" />
                     Camera
-                  </button>
-                </div>
-              </div>
-
-              {/* 1-Click Interactive Test Samples */}
-              <div className="mt-6 pt-5 border-t border-slate-200">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5 flex items-center justify-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-                  Try 1-Click Test Bench Samples from Model Validation Set:
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  <button
-                    onClick={() => handleSampleClick('/samples/sample_fresh_apple.jpg', 'fresh_apple_grade_a.jpg')}
-                    disabled={isAnalyzing}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  >
-                    <span>🍏</span> Fresh Apple (Grade A)
-                  </button>
-                  <button
-                    onClick={() => handleSampleClick('/samples/sample_rotten_banana.jpg', 'rotten_banana_spoiled.jpg')}
-                    disabled={isAnalyzing}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  >
-                    <span>🍌</span> Rotten Banana (Spoiled)
-                  </button>
-                  <button
-                    onClick={() => handleSampleClick('/samples/sample_food_waste.jpg', 'food_waste_organic.jpg')}
-                    disabled={isAnalyzing}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  >
-                    <span>🍲</span> Food Waste (archive 2)
-                  </button>
-                  <button
-                    onClick={() => handleSampleClick('/samples/sample_plastic_bottle.jpg', 'plastic_bottle_pet.jpg')}
-                    disabled={isAnalyzing}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  >
-                    <span>🧴</span> Plastic Bottle (archive 2)
-                  </button>
-                  <button
-                    onClick={() => handleSampleClick('/samples/sample_fresh_orange.jpg', 'fresh_orange_ripe.jpg')}
-                    disabled={isAnalyzing}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  >
-                    <span>🍊</span> Fresh Orange (Ripe)
-                  </button>
-                  <button
-                    onClick={() => handleSampleClick('/samples/sample_leaf_waste.jpg', 'leaf_waste_green.jpg')}
-                    disabled={isAnalyzing}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  >
-                    <span>🍂</span> Leaf Waste (archive 2)
                   </button>
                 </div>
               </div>

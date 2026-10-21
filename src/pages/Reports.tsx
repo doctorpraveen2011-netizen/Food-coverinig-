@@ -8,36 +8,6 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
-const DEFAULT_SAMPLE_REPORT: AnalyzedFood = {
-  id: 'FC-INS-2026-9812',
-  food: 'Fresh Organic Red Apples',
-  displayName: 'Organic Royal Gala Apples (Malus domestica)',
-  freshness: 'Fresh',
-  risk: 'Low',
-  confidence: '98.4%',
-  shelfLife: '14 - 18 Days',
-  timestamp: Date.now() - 3600000 * 2,
-  imageUrl: './samples/sample_fresh_apple.jpg',
-  category: 'Fresh Produce (Organic Orchards)',
-  recommendation: 'Certified Safe for Retail Distribution & Consumer Dispatch. Keep cold storage at 2-4°C.',
-  sensorData: {
-    temperature: '3.8°C',
-    humidity: '88% RH',
-    gasVoc: '0.04 ppm (Ethylene Optimal)',
-    pH: '3.92 (Crisp acidity balance)'
-  },
-  sensor_telemetry: {
-    temperature_c: 3.8,
-    humidity_rh: 88.0,
-    ethylene_ppm: 0.04,
-    nh3_ppm: 0.01,
-    co2_ppm: 420
-  },
-  degradability: 'Biodegradable',
-  ecoImpact: '99.4% Carbon Offset Verified',
-  action: 'Certified Safe for Retail Distribution'
-};
-
 export default function Reports() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -75,14 +45,14 @@ export default function Reports() {
     }
   }, []);
 
-  const isUsingSample = !location.state?.latestScanResult && (!history || history.length === 0) && !serverScan;
-  const scanData: AnalyzedFood = location.state?.latestScanResult || (history && history.length > 0 ? history[0] : (serverScan || DEFAULT_SAMPLE_REPORT));
+  const hasRealScan = Boolean(location.state?.latestScanResult || (history && history.length > 0) || serverScan);
+  const scanData: AnalyzedFood | null = location.state?.latestScanResult || (history && history.length > 0 ? history[0] : serverScan);
 
   const getImgSrc = (url?: string) => {
     if (!url) return '';
-    if (url.startsWith('/samples/')) return '.' + url;
     return url;
   };
+
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString('en-US', {
@@ -119,6 +89,52 @@ export default function Reports() {
     return 'Bakery / Snack Food';
   };
   
+  if (!scanData) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 pb-12 font-sans">
+        <div className="flex items-center justify-between border-b pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center border border-emerald-100">
+              <ShieldCheck className="w-6 h-6 text-emerald-600" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 leading-tight">FoodCovering</h1>
+              <p className="text-xs text-gray-500">AI-powered food safety and food waste management</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <h2 className="text-sm font-semibold text-gray-900">Government Food Safety Department</h2>
+            <p className="text-xs text-gray-500">Government of India - Admin User</p>
+          </div>
+        </div>
+
+        <div className="pt-2">
+          <h2 className="text-2xl font-bold text-slate-900">AI Food Safety Analysis Report</h2>
+          <p className="text-xs text-gray-500 mt-1">AI-assisted food identification, freshness assessment, spoilage risk evaluation and shelf-life estimation</p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-xs">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-200">
+            <Scan className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-900">No AI Inspection Dossiers Available</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">
+            Capture or upload a real food or waste specimen using the Deep Learning Vision Scanner to generate an official forensic audit report with inch-by-inch segregation breakdown.
+          </p>
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={() => navigate('/ai-scan')}
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Launch Live AI Scanner</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const classification = getClassification(scanData.food, scanData.risk);
   
   return (
@@ -145,22 +161,6 @@ export default function Reports() {
         <p className="text-xs text-gray-500 mt-1">AI-assisted food identification, freshness assessment, spoilage risk evaluation and shelf-life estimation</p>
       </div>
 
-      {isUsingSample && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span className="text-xs font-semibold text-emerald-900">
-              Displaying Official Sample Audit Report (Lot #FC-INS-2026-9812). Want to inspect your own food item?
-            </span>
-          </div>
-          <button
-            onClick={() => navigate('/user/ai-scan')}
-            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shrink-0"
-          >
-            Launch Live AI Scanner
-          </button>
-        </div>
-      )}
 
       {/* Meta Info */}
       <div className="grid grid-cols-4 gap-4 bg-white rounded-lg border p-4 shadow-sm">
