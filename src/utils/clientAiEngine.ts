@@ -334,29 +334,36 @@ export class ClientAiEngine {
             updateBounds('food_waste', x, y);
           }
 
-          // 2. Fresh Whole Fruit Profiles (strictly for produce evaluation)
+          // 2. Fresh Whole Fruit Profiles (strictly for produce evaluation & organic waste)
           if (r > 165 && g >= 80 && g <= 175 && b < 75 && r > g + 35) {
             citrusOrangePixels++;
+            updateBounds('food_waste', x, y);
           }
           if (r > 140 && g < 75 && b < 75 && r > g + 55) {
             appleRedPixels++;
+            updateBounds('food_waste', x, y);
           }
           if (g > 130 && r < 100 && b < 80 && g > r + 30) {
             appleGreenPixels++;
+            updateBounds('food_waste', x, y);
           }
           if (r > 160 && g > 140 && b < 95 && Math.abs(r - g) < 45) {
             bananaYellowPixels++;
+            updateBounds('food_waste', x, y);
           }
 
-          // 3. Mold & Spoilage Signs
+          // 3. Mold & Spoilage Signs (Always Organic Food Waste)
           if (r > 170 && g > 170 && b > 170 && Math.abs(r - g) < 25 && Math.abs(g - b) < 25 && (r < 235 || g < 235 || b < 235)) {
             whiteMoldPixels++;
+            updateBounds('food_waste', x, y);
           }
           if (g >= r - 10 && b >= 65 && g >= 65 && r < 180 && (b >= r - 20 || g > r)) {
             blueGreenMoldPixels++;
+            updateBounds('food_waste', x, y);
           }
           if (luminance < 45 && r < 60 && g < 55 && b < 50) {
             blackDecayPixels++;
+            updateBounds('food_waste', x, y);
           }
 
           // 4. Metal & Alloy Cans: Specular glints and neutral metallic reflections
@@ -478,9 +485,11 @@ export class ClientAiEngine {
     const chipMetallicRatio = chipMetallicPins / validFg;
     const avgEdgeEnergy = edgeEnergy / validFg;
 
-    // Broad Cooked Food Ratios
+    // Broad Cooked Food & Organic Produce Ratios
     const totalCookedFoodPixels = cookedBunBrownPixels + frenchFryYellowPixels + cookedPattyMeatPixels + saladVegetablePixels + tomatoSaucePixels + cookedRiceWhitePixels;
     const broadFoodRatio = totalCookedFoodPixels / validFg;
+    const organicProduceRatio = (citrusOrangePixels + appleRedPixels + appleGreenPixels + bananaYellowPixels) / validFg;
+    const moldRatio = (whiteMoldPixels + blueGreenMoldPixels + blackDecayPixels) / validFg;
 
     const fn = (options.filename || '').toLowerCase();
 
@@ -488,9 +497,12 @@ export class ClientAiEngine {
     // STEP 3: BALANCED MULTI-CLASS MATERIAL SCORING (8 KAGGLE WASTE CLASSES)
     // -----------------------------------------------------------------------
     const scores: Record<string, number> = {
-      food_waste: broadFoodRatio * 2.8 + (broadFoodRatio > 0.08 ? 0.40 : 0) +
-        (whiteMoldPixels + blueGreenMoldPixels > validFg * 0.02 ? 0.35 : 0) +
-        (fn.includes('food') || fn.includes('meal') || fn.includes('scrap') || fn.includes('leftover') || fn.includes('plate') || fn.includes('burger') || fn.includes('fries') ? 0.95 : 0),
+      food_waste: (broadFoodRatio * 2.8) + (organicProduceRatio * 2.8) +
+        (broadFoodRatio > 0.06 || organicProduceRatio > 0.06 ? 0.45 : 0) +
+        (moldRatio > 0.015 ? 0.45 : 0) +
+        (fn.includes('food') || fn.includes('meal') || fn.includes('scrap') || fn.includes('leftover') ||
+         fn.includes('plate') || fn.includes('burger') || fn.includes('fries') || fn.includes('orange') ||
+         fn.includes('apple') || fn.includes('banana') || fn.includes('fruit') || fn.includes('citrus') || fn.includes('waste') ? 0.95 : 0),
 
       metal_cans: (metallicRatio * 2.6 + specularRatio * 2.2) +
         (metallicRatio > 0.08 ? 0.35 : 0) +
@@ -558,24 +570,28 @@ export class ClientAiEngine {
       };
     };
 
-    // 1. Food Waste Detection
-    if (bounds.food_waste.count > 30 || broadFoodRatio > 0.08) {
+    // 1. Food Waste Detection (Leftovers, Cooked Food, Fruits & Produce)
+    if (bounds.food_waste.count > 30 || broadFoodRatio > 0.06 || organicProduceRatio > 0.06) {
       const box = createBbox('food_waste') || { bbox: [20, 20, width - 40, height - 40], bbox_norm: [0.05, 0.05, 0.9, 0.9] };
       let foodLabel = 'Organic Food Waste';
-      if (frenchFryYellowPixels > cookedBunBrownPixels && frenchFryYellowPixels > 30) {
+      if (citrusOrangePixels > validFg * 0.12 || isConfirmedOrange) {
+        foodLabel = (whiteMoldPixels + blueGreenMoldPixels > validFg * 0.015) ? 'Spoiled Citrus Fruit & Mold' : 'Citrus Fruit / Food Waste';
+      } else if (appleRedPixels > validFg * 0.12 || appleGreenPixels > validFg * 0.12 || isConfirmedApple) {
+        foodLabel = (whiteMoldPixels + blackDecayPixels > validFg * 0.015) ? 'Spoiled Apple & Organic Waste' : 'Apple / Food Waste';
+      } else if (bananaYellowPixels > validFg * 0.12 || isConfirmedBanana) {
+        foodLabel = (blackDecayPixels > validFg * 0.04) ? 'Spoiled Banana & Organic Waste' : 'Banana / Food Waste';
+      } else if (frenchFryYellowPixels > cookedBunBrownPixels && frenchFryYellowPixels > 30) {
         foodLabel = 'French Fries / Food Leftovers';
       } else if (cookedBunBrownPixels > 30 && cookedPattyMeatPixels > 20) {
         foodLabel = 'Burger / Meal Leftovers';
-      } else if (isWholeFruit) {
-        foodLabel = isConfirmedOrange ? 'Orange' : isConfirmedApple ? 'Apple' : 'Banana';
       }
 
       detectedObjects.push({
         id: `obj_${detectedObjects.length + 1}`,
         label: foodLabel,
         detector_category: 'food',
-        confidence: Math.min(0.96, Math.max(0.78, broadFoodRatio * 1.5 + 0.65)),
-        confidence_pct: `${Math.round(Math.min(0.96, Math.max(0.78, broadFoodRatio * 1.5 + 0.65)) * 100)}%`,
+        confidence: Math.min(0.98, Math.max(0.82, (broadFoodRatio + organicProduceRatio) * 1.5 + 0.65)),
+        confidence_pct: `${Math.round(Math.min(0.98, Math.max(0.82, (broadFoodRatio + organicProduceRatio) * 1.5 + 0.65)) * 100)}%`,
         bbox: box.bbox,
         bbox_norm: box.bbox_norm,
         category: 'Food / Organic Waste',
@@ -997,7 +1013,19 @@ export class ClientAiEngine {
 
     switch (topClass) {
       case 'food_waste':
-        if (broadFoodRatio > 0.15) {
+        if (citrusOrangePixels > validFg * 0.12 || isConfirmedOrange) {
+          itemName = (whiteMoldPixels + blueGreenMoldPixels > validFg * 0.015)
+            ? 'Spoiled Citrus Fruit & Mold Scraps'
+            : 'Organic Citrus Fruit Waste';
+        } else if (appleRedPixels > validFg * 0.12 || appleGreenPixels > validFg * 0.12 || isConfirmedApple) {
+          itemName = (whiteMoldPixels + blackDecayPixels > validFg * 0.015)
+            ? 'Spoiled Apple & Organic Waste'
+            : 'Organic Apple Waste';
+        } else if (bananaYellowPixels > validFg * 0.12 || isConfirmedBanana) {
+          itemName = (blackDecayPixels > validFg * 0.04)
+            ? 'Spoiled Banana & Peel Waste'
+            : 'Organic Banana Peel & Scraps';
+        } else if (broadFoodRatio > 0.12) {
           itemName = frenchFryYellowPixels > cookedBunBrownPixels
             ? 'French Fries & Food Leftovers'
             : 'Burger & Meal Leftovers';
@@ -1007,7 +1035,9 @@ export class ClientAiEngine {
         primaryCategory = 'Organic Food Waste';
         wasteGroup = 'Biodegradable';
         processingRoute = 'Municipal Organic Composting & Biogas Digestion';
-        recommendation = 'Organic plate waste and food scraps: separate from non-biodegradable packaging and route to composting.';
+        recommendation = (whiteMoldPixels + blueGreenMoldPixels > validFg * 0.015 || blackDecayPixels > validFg * 0.04)
+          ? 'Active mold / microbial decay detected on organic produce. Unfit for consumption or donation. Route directly to municipal bio-composting.'
+          : 'Organic plate waste and food scraps: separate from non-biodegradable packaging and route to composting.';
         ecoImpactText = 'Diverts organic food scraps from municipal landfills, mitigating fugitive methane emissions.';
         break;
 
