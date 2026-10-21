@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { User, Key, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { getBackendUrl } from '../../utils/apiConfig';
 
 export default function UserSettings() {
   const user = useAuthStore((state) => state.user);
@@ -40,41 +41,42 @@ export default function UserSettings() {
     const updatedFields = { fullName, email, phone, address };
 
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/user/profile`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(updatedFields),
-        signal: AbortSignal.timeout(2000)
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        updateUser(data.user);
-        if (data.token) {
-          localStorage.setItem('fc_auth_token', data.token);
-          useAuthStore.setState({ token: data.token, user: data.user });
-        }
-        setProfileMsg({ 
-          type: 'success', 
-          text: 'Profile updated successfully! Your mobile number and registered email have been updated across all your donations, complaints, and tracking records.' 
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        const res = await fetch(`${backendUrl}/api/user/profile`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(updatedFields),
+          signal: AbortSignal.timeout(2000)
         });
-        return;
+
+        if (res.ok) {
+          const data = await res.json();
+          updateUser(data.user);
+          if (data.token) {
+            localStorage.setItem('fc_auth_token', data.token);
+            useAuthStore.setState({ token: data.token, user: data.user });
+          }
+          setProfileMsg({ 
+            type: 'success', 
+            text: 'Profile updated successfully! Your mobile number and registered email have been updated across all your donations, complaints, and tracking records.' 
+          });
+          setProfileSaving(false);
+          return;
+        }
       }
-      throw new Error('Server non-ok');
-    } catch {
-      // Offline fallback: save locally
-      updateUser(updatedFields);
-      setProfileMsg({ 
-        type: 'success', 
-        text: 'Profile updated successfully! Your mobile number and registered email have been updated across all your donations, complaints, and tracking records.' 
-      });
-    } finally {
-      setProfileSaving(false);
-    }
+    } catch {}
+
+    // Offline fallback: save locally
+    updateUser(updatedFields);
+    setProfileMsg({ 
+      type: 'success', 
+      text: 'Profile updated successfully! Your mobile number and registered email have been updated across all your donations, complaints, and tracking records.' 
+    });
+    setProfileSaving(false);
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -92,34 +94,35 @@ export default function UserSettings() {
     setPassMsg(null);
 
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/auth/change-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ currentPassword, newPassword }),
-        signal: AbortSignal.timeout(2000)
-      });
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        const res = await fetch(`${backendUrl}/api/auth/change-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ currentPassword, newPassword }),
+          signal: AbortSignal.timeout(2000)
+        });
 
-      if (res.ok) {
-        setPassMsg({ type: 'success', text: 'Password updated successfully!' });
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        return;
+        if (res.ok) {
+          setPassMsg({ type: 'success', text: 'Password updated successfully!' });
+          setCurrentPassword('');
+          setNewPassword('');
+          setConfirmPassword('');
+          setPassSaving(false);
+          return;
+        }
       }
-      throw new Error('Server non-ok');
-    } catch {
-      // Offline fallback: confirm change
-      setPassMsg({ type: 'success', text: 'Password updated successfully!' });
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } finally {
-      setPassSaving(false);
-    }
+    } catch {}
+
+    // Offline fallback: confirm change
+    setPassMsg({ type: 'success', text: 'Password updated successfully!' });
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPassSaving(false);
   };
 
   return (

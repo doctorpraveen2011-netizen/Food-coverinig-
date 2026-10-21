@@ -20,6 +20,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { getStoredInventory, getClientDb, saveClientDb } from '../../data/mockDatabase';
+import { getBackendUrl } from '../../utils/apiConfig';
 
 export default function SupermarketInventory() {
   const navigate = useNavigate();
@@ -47,29 +48,32 @@ export default function SupermarketInventory() {
   const [inspectionResult, setInspectionResult] = useState('Store intake inspection compliant.');
 
   const fetchInventory = async () => {
-    try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const queryParams = new URLSearchParams();
-      if (search) queryParams.append('search', search);
-      if (selectedCategory !== 'All Categories') queryParams.append('category', selectedCategory);
-      if (selectedStatus !== 'All Statuses') queryParams.append('status', selectedStatus);
+    const backendUrl = getBackendUrl();
+    if (backendUrl) {
+      try {
+        const queryParams = new URLSearchParams();
+        if (search) queryParams.append('search', search);
+        if (selectedCategory !== 'All Categories') queryParams.append('category', selectedCategory);
+        if (selectedStatus !== 'All Statuses') queryParams.append('status', selectedStatus);
 
-      const res = await fetch(`${backendUrl}/api/supermarket/inventory?${queryParams.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(2500)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setInventory(data.inventory || []);
-        return;
+        const res = await fetch(`${backendUrl}/api/supermarket/inventory?${queryParams.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(2500)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setInventory(data.inventory || []);
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        // Fall through to offline fallback
       }
-      throw new Error('Server non-ok');
-    } catch (err) {
-      // Offline / Public Fallback: load inventory from mockDatabase
-      setInventory(getStoredInventory() as any);
-    } finally {
-      setLoading(false);
     }
+
+    // Offline / Public Fallback: load inventory from mockDatabase
+    setInventory(getStoredInventory() as any);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -106,106 +110,108 @@ export default function SupermarketInventory() {
     };
 
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/supermarket/inventory`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(newItem),
-        signal: AbortSignal.timeout(2000)
-      });
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        const res = await fetch(`${backendUrl}/api/supermarket/inventory`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(newItem),
+          signal: AbortSignal.timeout(2000)
+        });
 
-      if (res.ok) {
-        setMessage({ type: 'success', text: `Inventory item ${name} added successfully.` });
-        setModalOpen(false);
-        setName('');
-        setBatchNumber('');
-        setBarcode('');
-        fetchInventory();
-        return;
+        if (res.ok) {
+          setMessage({ type: 'success', text: `Inventory item ${name} added successfully.` });
+          setModalOpen(false);
+          setName('');
+          setBatchNumber('');
+          setBarcode('');
+          fetchInventory();
+          return;
+        }
       }
-      throw new Error('Server non-ok');
-    } catch {
-      // Offline fallback: save to mockDatabase
-      const db = getClientDb();
-      db.inventory = [newItem, ...(db.inventory || [])];
-      saveClientDb(db);
-      setInventory(db.inventory);
-      setMessage({ type: 'success', text: `Inventory item ${name} added successfully.` });
-      setModalOpen(false);
-      setName('');
-      setBatchNumber('');
-      setBarcode('');
-    } finally {
-      setSubmitting(false);
-    }
+    } catch {}
+
+    // Offline fallback: save to mockDatabase
+    const db = getClientDb();
+    db.inventory = [newItem, ...(db.inventory || [])];
+    saveClientDb(db);
+    setInventory(db.inventory);
+    setMessage({ type: 'success', text: `Inventory item ${name} added successfully.` });
+    setModalOpen(false);
+    setName('');
+    setBatchNumber('');
+    setBarcode('');
+    setSubmitting(false);
   };
 
   const handleToggleDonation = async (item: any) => {
     const updatedStatus = !item.flaggedForDonation;
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/supermarket/inventory/${item.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          flaggedForDonation: updatedStatus
-        }),
-        signal: AbortSignal.timeout(2000)
-      });
-
-      if (res.ok) {
-        setMessage({ 
-          type: 'success', 
-          text: updatedStatus ? `${item.name} flagged for surplus charity pickup.` : `Flag removed for ${item.name}.`
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        const res = await fetch(`${backendUrl}/api/supermarket/inventory/${item.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            flaggedForDonation: updatedStatus
+          }),
+          signal: AbortSignal.timeout(2000)
         });
-        fetchInventory();
-        return;
+
+        if (res.ok) {
+          setMessage({ 
+            type: 'success', 
+            text: updatedStatus ? `${item.name} flagged for surplus charity pickup.` : `Flag removed for ${item.name}.`
+          });
+          fetchInventory();
+          return;
+        }
       }
-      throw new Error('Server non-ok');
-    } catch {
-      // Offline fallback: update in mockDatabase
-      const db = getClientDb();
-      db.inventory = (db.inventory || []).map((i: any) => i.id === item.id ? { ...i, flaggedForDonation: updatedStatus } : i);
-      saveClientDb(db);
-      setInventory(db.inventory);
-      setMessage({ 
-        type: 'success', 
-        text: updatedStatus ? `${item.name} flagged for surplus charity pickup.` : `Flag removed for ${item.name}.`
-      });
-    }
+    } catch {}
+
+    // Offline fallback: update in mockDatabase
+    const db = getClientDb();
+    db.inventory = (db.inventory || []).map((i: any) => i.id === item.id ? { ...i, flaggedForDonation: updatedStatus } : i);
+    saveClientDb(db);
+    setInventory(db.inventory);
+    setMessage({ 
+      type: 'success', 
+      text: updatedStatus ? `${item.name} flagged for surplus charity pickup.` : `Flag removed for ${item.name}.`
+    });
   };
 
   const handleDelete = async (id: string, itemName: string) => {
     if (!confirm(`Are you sure you want to retire inventory batch ${itemName}?`)) return;
 
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/supermarket/inventory/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(2000)
-      });
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        const res = await fetch(`${backendUrl}/api/supermarket/inventory/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(2000)
+        });
 
-      if (res.ok) {
-        setMessage({ type: 'success', text: `Item ${itemName} removed from inventory.` });
-        fetchInventory();
-        return;
+        if (res.ok) {
+          setMessage({ type: 'success', text: `Item ${itemName} removed from inventory.` });
+          fetchInventory();
+          return;
+        }
       }
-      throw new Error('Server non-ok');
-    } catch {
-      // Offline fallback: remove from mockDatabase
-      const db = getClientDb();
-      db.inventory = (db.inventory || []).filter((i: any) => i.id !== id);
-      saveClientDb(db);
-      setInventory(db.inventory);
-      setMessage({ type: 'success', text: `Item ${itemName} removed from inventory.` });
-    }
+    } catch {}
+
+    // Offline fallback: remove from mockDatabase
+    const db = getClientDb();
+    db.inventory = (db.inventory || []).filter((i: any) => i.id !== id);
+    saveClientDb(db);
+    setInventory(db.inventory);
+    setMessage({ type: 'success', text: `Item ${itemName} removed from inventory.` });
   };
 
   const totalItems = inventory.length;

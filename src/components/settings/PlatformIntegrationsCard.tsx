@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2 } from 'lucide-react';
+import { getBackendUrl } from '../../utils/apiConfig';
 
 interface IntegrationItem {
   id: string;
@@ -30,8 +31,9 @@ export default function PlatformIntegrationsCard() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-        const res = await fetch(`${backendUrl}/api/v1/settings/integrations`);
+        const backendUrl = getBackendUrl();
+        if (!backendUrl) return;
+        const res = await fetch(`${backendUrl}/api/v1/settings/integrations`, { signal: AbortSignal.timeout(2000) });
         if (res.ok) {
           const data = await res.json();
           setIntegrations([

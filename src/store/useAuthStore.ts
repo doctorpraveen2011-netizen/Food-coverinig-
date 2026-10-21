@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getBackendUrl } from '../utils/apiConfig';
 
 export type UserRole = 'NORMAL_USER' | 'SUPERMARKET_OFFICIAL' | 'HEAD_OFFICE_ADMIN';
 
@@ -60,7 +61,7 @@ interface AuthState {
   updateUser: (partialUser: Partial<User>) => void;
 }
 
-const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
+const getApiBase = () => getBackendUrl();
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -70,140 +71,148 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
 
   login: async (email, password) => {
-    try {
-      set({ error: null });
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+    const apiBase = getApiBase();
+    if (apiBase) {
+      try {
+        set({ error: null });
+        const res = await fetch(`${apiBase}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+          signal: AbortSignal.timeout(3000)
+        });
 
-      const data = await res.json();
-      if (!res.ok) {
-        set({ error: data.error || 'Login failed' });
-        return { success: false, error: data.error || 'Login failed' };
+        const data = await res.json();
+        if (res.ok) {
+          localStorage.setItem('fc_auth_token', data.token);
+          localStorage.setItem('fc_user_session', JSON.stringify(data.user));
+          set({
+            token: data.token,
+            user: data.user,
+            isAuthenticated: true,
+            error: null,
+          });
+          return { success: true, role: data.user.role };
+        } else {
+          set({ error: data.error || 'Login failed' });
+          return { success: false, error: data.error || 'Login failed' };
+        }
+      } catch (err: any) {
+        console.warn('Backend unavailable, checking demo credentials fallback:', err);
       }
-
-      localStorage.setItem('fc_auth_token', data.token);
-      localStorage.setItem('fc_user_session', JSON.stringify(data.user));
-      set({
-        token: data.token,
-        user: data.user,
-        isAuthenticated: true,
-        error: null,
-      });
-
-      return { success: true, role: data.user.role };
-    } catch (err: any) {
-      console.warn('Backend unavailable, checking demo credentials fallback:', err);
-      // Public deployment offline demo fallback
-      const lower = email.toLowerCase().trim();
-      let fallbackUser: User | null = null;
-      if (lower.includes('admin') || lower === 'admin@foodcovering.gov') {
-        fallbackUser = {
-          id: 'admin-01',
-          email: 'admin@foodcovering.gov',
-          username: 'admin',
-          fullName: 'Dr. Praveen (Administrator)',
-          phone: '+91 82488 32986',
-          role: 'HEAD_OFFICE_ADMIN',
-          isActive: true
-        };
-      } else if (lower.includes('supermarket') || lower.includes('store') || lower.includes('freshmart') || lower.includes('sm')) {
-        fallbackUser = {
-          id: 'spm-01',
-          email: 'official@freshmart.com',
-          username: 'supermarket_lead',
-          fullName: 'Rajesh Mehta (Store Lead)',
-          phone: '+91 98222 33445',
-          role: 'SUPERMARKET_OFFICIAL',
-          supermarketId: 'sm-001',
-          supermarket: { id: 'sm-001', name: 'FreshMart Supermarkets', code: 'FM-01' },
-          isActive: true
-        };
-      } else {
-        fallbackUser = {
-          id: 'usr-01',
-          email: email.includes('@') ? email : `${email}@foodcovering.org`,
-          username: email.split('@')[0],
-          fullName: 'Praveen Kumar (Citizen / Donor)',
-          phone: '+91 82488 32986',
-          role: 'NORMAL_USER',
-          creditPoints: 525,
-          tier: 'Silver',
-          isActive: true
-        };
-      }
-
-      const demoToken = 'demo-public-token-2026';
-      localStorage.setItem('fc_auth_token', demoToken);
-      localStorage.setItem('fc_user_session', JSON.stringify(fallbackUser));
-      set({
-        token: demoToken,
-        user: fallbackUser,
-        isAuthenticated: true,
-        error: null
-      });
-      return { success: true, role: fallbackUser.role };
     }
+
+    // Public deployment offline demo fallback
+    const lower = email.toLowerCase().trim();
+    let fallbackUser: User | null = null;
+    if (lower.includes('admin') || lower === 'admin@foodcovering.gov') {
+      fallbackUser = {
+        id: 'admin-01',
+        email: 'admin@foodcovering.gov',
+        username: 'admin',
+        fullName: 'Dr. Praveen (Administrator)',
+        phone: '+91 82488 32986',
+        role: 'HEAD_OFFICE_ADMIN',
+        isActive: true
+      };
+    } else if (lower.includes('supermarket') || lower.includes('store') || lower.includes('freshmart') || lower.includes('sm')) {
+      fallbackUser = {
+        id: 'spm-01',
+        email: 'official@freshmart.com',
+        username: 'supermarket_lead',
+        fullName: 'Rajesh Mehta (Store Lead)',
+        phone: '+91 98222 33445',
+        role: 'SUPERMARKET_OFFICIAL',
+        supermarketId: 'sm-001',
+        supermarket: { id: 'sm-001', name: 'FreshMart Supermarkets', code: 'FM-01' },
+        isActive: true
+      };
+    } else {
+      fallbackUser = {
+        id: 'usr-01',
+        email: email.includes('@') ? email : `${email}@foodcovering.org`,
+        username: email.split('@')[0],
+        fullName: 'Praveen Kumar (Citizen / Donor)',
+        phone: '+91 82488 32986',
+        role: 'NORMAL_USER',
+        creditPoints: 525,
+        tier: 'Silver',
+        isActive: true
+      };
+    }
+
+    const demoToken = 'demo-public-token-2026';
+    localStorage.setItem('fc_auth_token', demoToken);
+    localStorage.setItem('fc_user_session', JSON.stringify(fallbackUser));
+    set({
+      token: demoToken,
+      user: fallbackUser,
+      isAuthenticated: true,
+      error: null
+    });
+    return { success: true, role: fallbackUser.role };
   },
 
   register: async (registerData) => {
-    try {
-      set({ error: null });
-      const res = await fetch(`${API_BASE}/api/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(registerData),
-      });
+    const apiBase = getApiBase();
+    if (apiBase) {
+      try {
+        set({ error: null });
+        const res = await fetch(`${apiBase}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(registerData),
+          signal: AbortSignal.timeout(3000)
+        });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Registration failed');
+        const data = await res.json();
+        if (res.ok) {
+          localStorage.setItem('fc_auth_token', data.token);
+          localStorage.setItem('fc_user_session', JSON.stringify(data.user));
+          set({
+            token: data.token,
+            user: data.user,
+            isAuthenticated: true,
+            error: null,
+          });
+          return { success: true };
+        }
+      } catch (err) {
+        console.warn('Backend unavailable during registration, using local session:', err);
       }
-
-      localStorage.setItem('fc_auth_token', data.token);
-      localStorage.setItem('fc_user_session', JSON.stringify(data.user));
-      set({
-        token: data.token,
-        user: data.user,
-        isAuthenticated: true,
-        error: null,
-      });
-
-      return { success: true };
-    } catch {
-      // Offline fallback: create user session locally
-      const newUser: User = {
-        id: 'usr-' + Date.now().toString(36),
-        email: registerData.email,
-        username: registerData.email.split('@')[0],
-        fullName: registerData.fullName,
-        phone: registerData.phone,
-        address: registerData.address || 'New Delhi, India',
-        role: 'NORMAL_USER',
-        creditPoints: 100,
-        tier: 'Bronze',
-        isActive: true
-      };
-
-      const demoToken = 'demo-public-token-2026';
-      localStorage.setItem('fc_auth_token', demoToken);
-      localStorage.setItem('fc_user_session', JSON.stringify(newUser));
-      set({
-        token: demoToken,
-        user: newUser,
-        isAuthenticated: true,
-        error: null
-      });
-      return { success: true };
     }
+
+    // Offline fallback: create user session locally
+    const newUser: User = {
+      id: 'usr-' + Date.now().toString(36),
+      email: registerData.email,
+      username: registerData.email.split('@')[0],
+      fullName: registerData.fullName,
+      phone: registerData.phone,
+      address: registerData.address || 'New Delhi, India',
+      role: 'NORMAL_USER',
+      creditPoints: 100,
+      tier: 'Bronze',
+      isActive: true
+    };
+
+    const demoToken = 'demo-public-token-2026';
+    localStorage.setItem('fc_auth_token', demoToken);
+    localStorage.setItem('fc_user_session', JSON.stringify(newUser));
+    set({
+      token: demoToken,
+      user: newUser,
+      isAuthenticated: true,
+      error: null
+    });
+    return { success: true };
   },
 
   logout: () => {
     const token = get().token;
-    if (token && typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-      fetch(`${API_BASE}/api/auth/logout`, {
+    const apiBase = getApiBase();
+    if (token && apiBase) {
+      fetch(`${apiBase}/api/auth/logout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});
@@ -235,8 +244,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } catch {}
     }
 
-    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-      // On static deployment (GitHub Pages), maintain restored user
+    const apiBase = getApiBase();
+    if (!apiBase) {
+      // On static deployment without cloud backend, maintain restored user session
       if (initialUser) {
         set({
           user: initialUser,
@@ -244,12 +254,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isAuthenticated: true,
           isInitializing: false
         });
-        return;
+      } else {
+        set({ user: null, token: null, isAuthenticated: false, isInitializing: false });
       }
+      return;
     }
 
     try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, {
+      const res = await fetch(`${apiBase}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(2000)
       });

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
+import { getBackendUrl, createSafeSocket } from '../../utils/apiConfig';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useAnalysisStore } from '../../store/useAnalysisStore';
 import { 
@@ -49,7 +49,10 @@ export default function SupermarketReports() {
 
   const fetchReport = async () => {
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
+      const backendUrl = getBackendUrl();
+      if (!backendUrl) {
+        throw new Error('No backend');
+      }
       const res = await fetch(`${backendUrl}/api/supermarket/reports`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(2000)
@@ -111,21 +114,21 @@ export default function SupermarketReports() {
   useEffect(() => {
     fetchReport();
 
-    const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-    const socket = io(backendUrl);
-
-    socket.on('aiAnalysisCreated', () => {
-      fetchReport();
-    });
-    socket.on('scanUpdate', () => {
-      fetchReport();
-    });
-    socket.on('wasteAnalysisUpdate', () => {
-      fetchReport();
-    });
+    const socket = createSafeSocket();
+    if (socket) {
+      socket.on('aiAnalysisCreated', () => {
+        fetchReport();
+      });
+      socket.on('scanUpdate', () => {
+        fetchReport();
+      });
+      socket.on('wasteAnalysisUpdate', () => {
+        fetchReport();
+      });
+    }
 
     return () => {
-      socket.disconnect();
+      socket?.disconnect();
     };
   }, [token]);
 
@@ -253,11 +256,13 @@ export default function SupermarketReports() {
   const handleClearAudits = async () => {
     if (!window.confirm('Clear all AI Food & Waste Audit records? The report will return to a clean zero state until the next AI scan.')) return;
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      await fetch(`${backendUrl}/api/supermarket/reports/clear`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        await fetch(`${backendUrl}/api/supermarket/reports/clear`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
       useAnalysisStore.getState().clearHistory();
       await fetchReport();
     } catch (err) {

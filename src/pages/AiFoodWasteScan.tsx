@@ -62,6 +62,7 @@ import {
 } from 'recharts';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAnalysisStore } from '../store/useAnalysisStore';
+import { getBackendUrl } from '../utils/apiConfig';
 import { SensorTelemetryPanel } from '../components/scanner/SensorTelemetryPanel';
 import { ClientAiEngine } from '../utils/clientAiEngine';
 import { SUPPORTED_LANGUAGES, type SupportedLanguage, translateScanResult } from '../utils/aiTranslations';
@@ -110,7 +111,7 @@ export default function AiFoodWasteScan() {
   const { t, i18n } = useTranslation();
   const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+  const backendUrl = getBackendUrl();
 
   // Analysis Mode: 'auto' | 'freshness' | 'waste'
   const [analysisMode, setAnalysisMode] = useState<'auto' | 'freshness' | 'waste'>('auto');
@@ -225,6 +226,7 @@ export default function AiFoodWasteScan() {
   // Fetch ML Status
   const fetchMlStatus = async () => {
     try {
+      if (!backendUrl) throw new Error('No backend');
       const res = await fetch(`${backendUrl}/api/v1/ml/status`, { signal: AbortSignal.timeout(3000) });
       if (res.ok) {
         const data = await res.json();
@@ -257,6 +259,7 @@ export default function AiFoodWasteScan() {
   const fetchStatsAndHistory = async () => {
     try {
       setIsLoadingData(true);
+      if (!backendUrl) throw new Error('No backend');
       const [statsRes, histRes] = await Promise.all([
         fetch(`${backendUrl}/api/ai/stats`, { signal: AbortSignal.timeout(3000) }),
         fetch(`${backendUrl}/api/ai/history?limit=15`, { signal: AbortSignal.timeout(3000) })
@@ -656,6 +659,7 @@ export default function AiFoodWasteScan() {
     setResult(null);
 
     try {
+      if (!backendUrl) throw new Error('No backend configured');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 

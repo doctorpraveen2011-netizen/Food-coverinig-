@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getBackendUrl } from '../../utils/apiConfig';
 
 interface CredentialPointsModalProps {
   isOpen: boolean;
@@ -66,15 +67,18 @@ export default function CredentialPointsModal({ isOpen, onClose }: CredentialPoi
   const handleClaimCertificate = async () => {
     setDownloadingCert(true);
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      await fetch(`${backendUrl}/api/auth/credentials/redeem`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ rewardType: 'CERTIFICATE' })
-      });
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        await fetch(`${backendUrl}/api/auth/credentials/redeem`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ rewardType: 'CERTIFICATE' }),
+          signal: AbortSignal.timeout(2000)
+        }).catch(() => {});
+      }
       setCertIssued(true);
       setActiveTab('certificate');
     } catch (err) {

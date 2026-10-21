@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { DeliveryHandoverOtpModal } from '../components/donations/DeliveryHandoverOtpModal';
 import { getStoredDonations } from '../data/mockDatabase';
+import { getBackendUrl } from '../utils/apiConfig';
 
 interface DonationItem {
   id: string;
@@ -82,10 +83,6 @@ export default function Tracking() {
   const { tracking, triggerMapAction, connect } = usePipelineStore();
   const { user } = useAuthStore();
 
-  const backendUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-    ? 'http://localhost:5000' 
-    : `http://${window.location.hostname}:5000`;
-
   // Connect live pipeline socket on mount
   useEffect(() => {
     connect();
@@ -93,39 +90,43 @@ export default function Tracking() {
 
   // Fetch all active donations for real-time fleet tracking
   const fetchDonations = async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch(`${backendUrl}/api/v1/donations`, { signal: AbortSignal.timeout(2500) });
-      const data = await res.json();
-      if (data.donations && data.donations.length > 0) {
-        const normalized = data.donations.map(normalizeDonation);
-        setDonationsList(normalized);
-        const params = new URLSearchParams(window.location.search);
-        const qId = params.get('donationId');
-        if (qId && normalized.some((d: DonationItem) => d.id === qId)) {
-          setSelectedDonationId(qId);
-        } else if (!selectedDonationId) {
-          setSelectedDonationId(normalized[0].id);
+    setIsLoading(true);
+    const backendUrl = getBackendUrl();
+    if (backendUrl) {
+      try {
+        const res = await fetch(`${backendUrl}/api/v1/donations`, { signal: AbortSignal.timeout(2500) });
+        const data = await res.json();
+        if (data.donations && data.donations.length > 0) {
+          const normalized = data.donations.map(normalizeDonation);
+          setDonationsList(normalized);
+          const params = new URLSearchParams(window.location.search);
+          const qId = params.get('donationId');
+          if (qId && normalized.some((d: DonationItem) => d.id === qId)) {
+            setSelectedDonationId(qId);
+          } else if (!selectedDonationId) {
+            setSelectedDonationId(normalized[0].id);
+          }
+          setIsLoading(false);
+          return;
         }
-        return;
+      } catch (err) {
+        // Fall through to offline fallback
       }
-      throw new Error('No donations from server');
-    } catch (err) {
-      // Offline / Public Fallback: load complete fleet donations from mockDatabase
-      const stored = getStoredDonations();
-      const normalized = (stored || []).map(normalizeDonation);
-      setDonationsList(normalized);
-      if (normalized.length > 0 && !selectedDonationId) {
-        setSelectedDonationId(normalized[0].id);
-      }
-    } finally {
-      setIsLoading(false);
     }
+
+    // Offline / Public Fallback: load complete fleet donations from mockDatabase
+    const stored = getStoredDonations();
+    const normalized = (stored || []).map(normalizeDonation);
+    setDonationsList(normalized);
+    if (normalized.length > 0 && !selectedDonationId) {
+      setSelectedDonationId(normalized[0].id);
+    }
+    setIsLoading(false);
   };
 
   useEffect(() => {
     fetchDonations();
-  }, [backendUrl]);
+  }, []);
 
   // Current active donation / fleet delivery
   const activeDonation: DonationItem | null = useMemo(() => {

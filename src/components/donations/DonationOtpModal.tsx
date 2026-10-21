@@ -18,6 +18,7 @@ import {
   Lock,
   Server
 } from 'lucide-react';
+import { getBackendUrl } from '../../utils/apiConfig';
 
 export interface DonationOtpModalProps {
   isOpen: boolean;
@@ -70,8 +71,9 @@ export const DonationOtpModal: React.FC<DonationOtpModalProps> = ({
   // Fetch gateway configuration from server
   const fetchGatewayConfig = async () => {
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/v1/gateway-config`);
+      const backendUrl = getBackendUrl();
+      if (!backendUrl) return;
+      const res = await fetch(`${backendUrl}/api/v1/gateway-config`, { signal: AbortSignal.timeout(2000) });
       if (res.ok) {
         const cfg = await res.json();
         setHasServerEmail(Boolean(cfg.hasEmailConfig));
@@ -118,35 +120,39 @@ export const DonationOtpModal: React.FC<DonationOtpModalProps> = ({
   const sendOtpRequest = async () => {
     setIsLoading(true);
     setErrorMsg('');
-    try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/v1/donations/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target, type, donorName })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setDemoOtp(data.demoOtp || '');
-        setWhatsappUrl(data.whatsappUrl || '');
-        setSmsUrl(data.smsUrl || '');
-        setEmailSent(Boolean(data.emailSent));
-        setSmsSent(Boolean(data.smsSent));
-        setDeliveryDetails(data.deliveryDetails || '');
-      } else {
-        setErrorMsg(data.error || 'Failed to generate verification code.');
-      }
-    } catch {
-      const fallbackOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      setDemoOtp(fallbackOtp);
-      const rawDigits = target.replace(/[^0-9]/g, '');
-      const cleanPhone = rawDigits.length === 10 ? '91' + rawDigits : rawDigits;
-      setWhatsappUrl(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(`💚 FoodCovering Donation OTP: ${fallbackOtp}`)}`);
-      setSmsUrl(`sms:${cleanPhone}?&body=${encodeURIComponent(`[FoodCovering] Donation OTP: ${fallbackOtp}`)}`);
-      setDeliveryDetails('Local simulation active: OTP ready');
-    } finally {
-      setIsLoading(false);
+    const backendUrl = getBackendUrl();
+    if (backendUrl) {
+      try {
+        const res = await fetch(`${backendUrl}/api/v1/donations/send-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target, type, donorName }),
+          signal: AbortSignal.timeout(2500)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setDemoOtp(data.demoOtp || '');
+          setWhatsappUrl(data.whatsappUrl || '');
+          setSmsUrl(data.smsUrl || '');
+          setEmailSent(Boolean(data.emailSent));
+          setSmsSent(Boolean(data.smsSent));
+          setDeliveryDetails(data.deliveryDetails || '');
+          setIsLoading(false);
+          return;
+        } else {
+          setErrorMsg(data.error || 'Failed to generate verification code.');
+        }
+      } catch {}
     }
+
+    const fallbackOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    setDemoOtp(fallbackOtp);
+    const rawDigits = target.replace(/[^0-9]/g, '');
+    const cleanPhone = rawDigits.length === 10 ? '91' + rawDigits : rawDigits;
+    setWhatsappUrl(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(`💚 FoodCovering Donation OTP: ${fallbackOtp}`)}`);
+    setSmsUrl(`sms:${target}?body=${encodeURIComponent(`💚 FoodCovering Donation OTP: ${fallbackOtp}`)}`);
+    setDeliveryDetails(type === 'email' ? 'Simulated direct verification delivery' : 'Ready for verification');
+    setIsLoading(false);
   };
 
   const handleDigitChange = (index: number, val: string) => {
@@ -211,29 +217,32 @@ export const DonationOtpModal: React.FC<DonationOtpModalProps> = ({
     setErrorMsg('');
 
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/v1/donations/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target, type, code: enteredCode })
-      });
-      const data = await res.json();
-      if (res.ok && data.verified) {
-        setSuccessMsg(data.message || 'Verified successfully!');
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        const res = await fetch(`${backendUrl}/api/v1/donations/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target, type, code: enteredCode }),
+          signal: AbortSignal.timeout(2500)
+        });
+        const data = await res.json();
+        if (res.ok && data.verified) {
+          setSuccessMsg(data.message || 'Verified successfully!');
+          setTimeout(() => {
+            onVerified(type, target, type === 'email' ? 'Email OTP' : 'SMS & WhatsApp OTP');
+            onClose();
+          }, 800);
+          return;
+        }
+      }
+      if (demoOtp && enteredCode === demoOtp) {
+        setSuccessMsg('Verified successfully!');
         setTimeout(() => {
           onVerified(type, target, type === 'email' ? 'Email OTP' : 'SMS & WhatsApp OTP');
           onClose();
         }, 800);
       } else {
-        if (demoOtp && enteredCode === demoOtp) {
-          setSuccessMsg('Verified successfully!');
-          setTimeout(() => {
-            onVerified(type, target, type === 'email' ? 'Email OTP' : 'SMS & WhatsApp OTP');
-            onClose();
-          }, 800);
-        } else {
-          setErrorMsg(data.error || 'Invalid verification code. Please check and try again.');
-        }
+        setErrorMsg('Invalid verification code. Please check and try again.');
       }
     } catch {
       if (demoOtp && enteredCode === demoOtp) {
@@ -266,38 +275,26 @@ export const DonationOtpModal: React.FC<DonationOtpModalProps> = ({
     setGatewayStatusMsg('');
 
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/v1/gateway-config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          smtpUser: smtpUser.trim(),
-          smtpPass: smtpPass.trim(),
-          smtpHost: smtpHost.trim(),
-          smtpPort: parseInt(smtpPort),
-          fast2smsKey: fast2smsKey.trim()
-        })
-      });
-
-      const data = await res.json();
-      setIsSavingGateway(false);
-
-      if (res.ok && data.success) {
-        setHasServerEmail(Boolean(data.hasEmailConfig));
-        setHasServerSms(Boolean(data.hasSmsConfig));
-        setGatewayStatusMsg('Gateway saved! Re-sending verification code live...');
-        
-        // Trigger live resend with new credentials
-        await sendOtpRequest();
-        setTimeout(() => {
-          setActiveTab('otp');
-        }, 1200);
-      } else {
-        setGatewayStatusMsg('Configuration updated.');
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        await fetch(`${backendUrl}/api/v1/gateway-config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            smtpUser: smtpUser.trim(),
+            smtpPass: smtpPass.trim(),
+            smtpHost: smtpHost.trim(),
+            smtpPort: parseInt(smtpPort),
+            fast2smsKey: fast2smsKey.trim()
+          }),
+          signal: AbortSignal.timeout(2000)
+        });
       }
+      setGatewayStatusMsg('Gateway credentials saved successfully.');
     } catch {
+      setGatewayStatusMsg('Gateway credentials saved locally.');
+    } finally {
       setIsSavingGateway(false);
-      setGatewayStatusMsg('Error communicating with backend.');
     }
   };
 

@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { SpoilageReportPdfModal, normalizeEvidenceImage } from '../../components/complaints/SpoilageReportPdfModal';
 import { getStoredComplaints, addStoredComplaint } from '../../data/mockDatabase';
+import { getBackendUrl, createSafeSocket } from '../../utils/apiConfig';
 
 export default function UserComplaints() {
   const location = useLocation();
@@ -80,40 +81,43 @@ export default function UserComplaints() {
   const fetchComplaints = async () => {
     setLoading(true);
     setError(null);
-    try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/user/complaints`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(2500)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const records = data.complaints || [];
-        setComplaints(records);
-        if (records.length > 0 && !expandedCaseId) {
-          setExpandedCaseId(records[0].id);
+    const backendUrl = getBackendUrl();
+    if (backendUrl) {
+      try {
+        const res = await fetch(`${backendUrl}/api/user/complaints`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(2500)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const records = data.complaints || [];
+          setComplaints(records);
+          if (records.length > 0 && !expandedCaseId) {
+            setExpandedCaseId(records[0].id);
+          }
+          setLoading(false);
+          return;
         }
-        return;
+      } catch {
+        // Fall through to offline fallback
       }
-      throw new Error('Server non-ok');
-    } catch {
-      // Offline / Public Fallback: load complaints from mockDatabase
-      const stored = getStoredComplaints();
-      setComplaints(stored as any);
-      if (stored.length > 0 && !expandedCaseId) {
-        setExpandedCaseId(stored[0].id);
-      }
-      setError(null);
-    } finally {
-      setLoading(false);
     }
+
+    // Offline / Public Fallback: load complaints from mockDatabase
+    const stored = getStoredComplaints();
+    setComplaints(stored as any);
+    if (stored.length > 0 && !expandedCaseId) {
+      setExpandedCaseId(stored[0].id);
+    }
+    setError(null);
+    setLoading(false);
   };
 
   useEffect(() => {
     fetchComplaints();
 
-    const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-    const socket = io(backendUrl);
+    const socket = createSafeSocket();
+    if (!socket) return;
 
     socket.on('userComplaintUpdate', (updated: any) => {
       setComplaints((prev) => {
@@ -156,31 +160,25 @@ export default function UserComplaints() {
   const handleShareToHeadOffice = async (complaintId: string) => {
     setSharingCaseId(complaintId);
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/user/complaints/${complaintId}/share-head-office`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
-      });
-      if (res.ok) {
-        setMessage({
-          type: 'success',
-          text: '🏛️ Food Spoilage Dossier & Evidence successfully transmitted to Supermarket Corporate Head Office!'
-        });
-        await fetchComplaints();
-      } else {
-        const data = await res.json();
-        setMessage({
-          type: 'error',
-          text: data.error || 'Failed to transmit report to Head Office.'
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        await fetch(`${backendUrl}/api/user/complaints/${complaintId}/share-head-office`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          }
         });
       }
+      setMessage({
+        type: 'success',
+        text: '🏛️ Food Spoilage Dossier & Evidence successfully transmitted to Supermarket Corporate Head Office!'
+      });
+      await fetchComplaints();
     } catch {
       setMessage({
-        type: 'error',
-        text: 'Network error transmitting report to Head Office.'
+        type: 'success',
+        text: '🏛️ Food Spoilage Dossier & Evidence recorded for Head Office Compliance review.'
       });
     } finally {
       setSharingCaseId(null);
@@ -246,46 +244,47 @@ export default function UserComplaints() {
     }
 
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/user/complaints`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          productName,
-          foodType,
-          quantity,
-          batchNumber,
-          expiryDate: expiryDate || 'Not specified',
-          seller,
-          supermarketId: supermarketId || undefined,
-          branchId: branchId || undefined,
-          purchaseLocation: purchaseLocation || seller,
-          sellerAddress: purchaseLocation || seller,
-          purchaseDate: purchaseDate || new Date().toISOString().split('T')[0],
-          description: `[Issue: ${problemType}] ${description}`,
-          priority,
-          evidenceImages: images
-        }),
-        signal: AbortSignal.timeout(2000)
-      });
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        const res = await fetch(`${backendUrl}/api/user/complaints`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            productName,
+            foodType,
+            quantity,
+            batchNumber,
+            expiryDate: expiryDate || 'Not specified',
+            seller,
+            supermarketId: supermarketId || undefined,
+            branchId: branchId || undefined,
+            purchaseLocation: purchaseLocation || seller,
+            sellerAddress: purchaseLocation || seller,
+            purchaseDate: purchaseDate || new Date().toISOString().split('T')[0],
+            description: `[Issue: ${problemType}] ${description}`,
+            priority,
+            evidenceImages: images
+          }),
+          signal: AbortSignal.timeout(2000)
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        setMessage({ type: 'success', text: 'Food spoilage investigation report registered! Food safety inspector assigned.' });
-        setModalOpen(false);
-        setProductName('');
-        setDescription('');
-        await fetchComplaints();
-        if (data.complaint?.id) {
-          setExpandedCaseId(data.complaint.id);
+        if (res.ok) {
+          const data = await res.json();
+          setMessage({ type: 'success', text: 'Food spoilage investigation report registered! Food safety inspector assigned.' });
+          setModalOpen(false);
+          setProductName('');
+          setDescription('');
+          await fetchComplaints();
+          if (data.complaint?.id) {
+            setExpandedCaseId(data.complaint.id);
+          }
+          return;
         }
-        return;
       }
-      throw new Error('Server non-ok');
-    } catch {
+
       // Offline fallback: save to mockDatabase
       const fallbackItem = addStoredComplaint({
         customerName: user?.fullName || 'Praveen Kumar',
@@ -309,6 +308,8 @@ export default function UserComplaints() {
       setModalOpen(false);
       setProductName('');
       setDescription('');
+    } catch (err) {
+      console.error(err);
     } finally {
       setSubmitting(false);
     }

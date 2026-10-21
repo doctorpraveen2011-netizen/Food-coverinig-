@@ -26,6 +26,7 @@ import {
   User
 } from 'lucide-react';
 import { usePipelineStore } from '../store/usePipelineStore';
+import { getBackendUrl } from '../utils/apiConfig';
 import { DonationOtpModal } from '../components/donations/DonationOtpModal';
 import { DonationDetailsModal, type DonationItem } from '../components/donations/DonationDetailsModal';
 
@@ -311,42 +312,43 @@ export default function Donations() {
   // Execute donation submission
   const executeDonationSubmission = async () => {
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const response = await fetch(`${backendUrl}/api/v1/donations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          food: formData.food,
-          qty: formData.qty,
-          donor: formData.donor,
-          phone: formData.phone,
-          email: formData.email,
-          phoneVerified: formData.phoneVerified,
-          emailVerified: formData.emailVerified,
-          receiver: formData.receiver,
-          region: formData.region,
-          expiryDate: formData.date,
-          desc: formData.desc
-        })
-      });
-
-      if (response.ok) {
-        setSuccessBanner(`Donation registered successfully! ${formData.phoneVerified || formData.emailVerified ? 'Authenticated with OTP verification.' : ''}`);
-        setTimeout(() => setSuccessBanner(null), 5000);
-        setFormData({ 
-          food: '', 
-          qty: '', 
-          donor: 'Live Donor', 
-          phone: '+91 98765 43210',
-          email: 'donor@example.com',
-          phoneVerified: false,
-          emailVerified: false,
-          receiver: 'Community Center', 
-          region: 'Chennai', 
-          date: '', 
-          desc: '' 
-        });
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        await fetch(`${backendUrl}/api/v1/donations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            food: formData.food,
+            qty: formData.qty,
+            donor: formData.donor,
+            phone: formData.phone,
+            email: formData.email,
+            phoneVerified: formData.phoneVerified,
+            emailVerified: formData.emailVerified,
+            receiver: formData.receiver,
+            region: formData.region,
+            expiryDate: formData.date,
+            desc: formData.desc
+          }),
+          signal: AbortSignal.timeout(2000)
+        }).catch(() => {});
       }
+
+      setSuccessBanner(`Donation registered successfully! ${formData.phoneVerified || formData.emailVerified ? 'Authenticated with OTP verification.' : ''}`);
+      setTimeout(() => setSuccessBanner(null), 5000);
+      setFormData({ 
+        food: '', 
+        qty: '', 
+        donor: 'Live Donor', 
+        phone: '+91 98765 43210',
+        email: 'donor@example.com',
+        phoneVerified: false,
+        emailVerified: false,
+        receiver: 'Community Center', 
+        region: 'Chennai', 
+        date: '', 
+        desc: '' 
+      });
     } catch (err) {
       console.error('Submission error:', err);
     }

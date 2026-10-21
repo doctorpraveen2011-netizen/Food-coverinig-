@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
+import { getBackendUrl } from '../utils/apiConfig';
 import { 
   ArrowUp, 
   Utensils, 
@@ -52,9 +53,10 @@ export default function Dashboard() {
     const fetchAdminDashboard = async () => {
       try {
         const token = useAuthStore.getState().token;
-        const backendUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-          ? 'http://localhost:5000' 
-          : `http://${window.location.hostname}:5000`;
+        const backendUrl = getBackendUrl();
+        if (!backendUrl) {
+          throw new Error('No backend');
+        }
         const res = await fetch(`${backendUrl}/api/admin/dashboard`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           signal: AbortSignal.timeout(2500)

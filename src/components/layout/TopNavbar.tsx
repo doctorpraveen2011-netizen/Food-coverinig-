@@ -22,6 +22,7 @@ import { useNavigate } from 'react-router-dom';
 import { useComplaintsStore } from '../../store/useComplaintsStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import CredentialPointsModal from '../credentials/CredentialPointsModal';
+import BackendStatusBadge from './BackendStatusBadge';
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '../../utils/aiTranslations';
 
 interface TopNavbarProps {
@@ -136,6 +137,9 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
             {user?.tier || 'Gold'}
           </span>
         </button>
+
+        {/* Backend & Cloud API Status Badge */}
+        <BackendStatusBadge />
 
         {/* Notification Bell */}
         <div className="relative" ref={notifRef}>

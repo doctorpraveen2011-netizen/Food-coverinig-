@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getBackendUrl } from '../../utils/apiConfig';
 import { 
   Printer, 
   X, 
@@ -119,15 +120,18 @@ export const SpoilageReportPdfModal: React.FC<SpoilageReportPdfModalProps> = ({
       if (onShareToHeadOffice) {
         await onShareToHeadOffice(complaint.id);
       } else {
-        const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-        const res = await fetch(`${backendUrl}/api/user/complaints/${complaint.id}/share-head-office`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          }
-        });
-        if (res.ok && onRefresh) {
+        const backendUrl = getBackendUrl();
+        if (backendUrl) {
+          await fetch(`${backendUrl}/api/user/complaints/${complaint.id}/share-head-office`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            signal: AbortSignal.timeout(2000)
+          }).catch(() => {});
+        }
+        if (onRefresh) {
           onRefresh();
         }
       }

@@ -51,9 +51,8 @@ interface TelecomState {
   closeConfigModal: () => void;
 }
 
-const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-  ? 'http://localhost:5000'
-  : `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:5000`;
+import { getBackendUrl } from '../utils/apiConfig';
+const getApiBase = () => getBackendUrl();
 
 let durationInterval: any = null;
 let simulatedAnswerTimeout: any = null;
@@ -92,12 +91,15 @@ export const useTelecomStore = create<TelecomState>((set, get) => ({
   fetchConfig: async () => {
     set({ isLoadingConfig: true });
     try {
-      const res = await fetch(`${API_BASE}/api/v1/telecom/config`, { signal: AbortSignal.timeout(1500) });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.config) {
-          set({ config: data.config });
-          return;
+      const apiBase = getApiBase();
+      if (apiBase) {
+        const res = await fetch(`${apiBase}/api/v1/telecom/config`, { signal: AbortSignal.timeout(1500) });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.config) {
+            set({ config: data.config });
+            return;
+          }
         }
       }
     } catch (err) {
@@ -117,12 +119,15 @@ export const useTelecomStore = create<TelecomState>((set, get) => ({
     const merged = { ...get().config, ...newConfig };
     localStorage.setItem('fc_telecom_config', JSON.stringify(merged));
     try {
-      await fetch(`${API_BASE}/api/v1/telecom/config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newConfig),
-        signal: AbortSignal.timeout(2000)
-      });
+      const apiBase = getApiBase();
+      if (apiBase) {
+        await fetch(`${apiBase}/api/v1/telecom/config`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newConfig),
+          signal: AbortSignal.timeout(2000)
+        });
+      }
     } catch {}
     set({
       config: merged,
@@ -161,23 +166,26 @@ export const useTelecomStore = create<TelecomState>((set, get) => ({
     try {
       get().fetchConfig().catch(() => {});
 
-      const res = await fetch(`${API_BASE}/api/v1/telecom/call`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: norm.cleanDestination || to,
-          contactName,
-          role,
-          donationId
-        }),
-        signal: AbortSignal.timeout(2000)
-      });
+      const apiBase = getApiBase();
+      if (apiBase) {
+        const res = await fetch(`${apiBase}/api/v1/telecom/call`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: norm.cleanDestination || to,
+            contactName,
+            role,
+            donationId
+          }),
+          signal: AbortSignal.timeout(2000)
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        callId = data.callId || callId;
-        provider = data.provider || 'Twilio Voice Gateway';
-        liveTelecomActive = !!data.liveTelecomActive;
+        if (res.ok) {
+          const data = await res.json();
+          callId = data.callId || callId;
+          provider = data.provider || 'Twilio Voice Gateway';
+          liveTelecomActive = !!data.liveTelecomActive;
+        }
       }
     } catch {
       console.info('Backend telecom gateway offline; utilizing WebRTC simulated voice bridge.');
@@ -207,8 +215,9 @@ export const useTelecomStore = create<TelecomState>((set, get) => ({
     set({ status: 'ended' });
 
     try {
-      if (currentCallId) {
-        await fetch(`${API_BASE}/api/v1/telecom/hangup`, {
+      const apiBase = getApiBase();
+      if (currentCallId && apiBase) {
+        await fetch(`${apiBase}/api/v1/telecom/hangup`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ callId: currentCallId }),

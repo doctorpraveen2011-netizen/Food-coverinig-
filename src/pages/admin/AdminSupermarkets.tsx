@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getBackendUrl } from '../../utils/apiConfig';
 import { getStoredSupermarkets, getClientDb, saveClientDb, addStoredUser } from '../../data/mockDatabase';
 import { 
   Building2, 
@@ -47,7 +48,12 @@ export default function AdminSupermarkets() {
 
   const fetchSupermarkets = async () => {
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
+      const backendUrl = getBackendUrl();
+      if (!backendUrl) {
+        const stored = getStoredSupermarkets();
+        setSupermarkets(stored || []);
+        return;
+      }
       const res = await fetch(`${backendUrl}/api/admin/supermarkets`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(2000)
@@ -93,8 +99,21 @@ export default function AdminSupermarkets() {
       resolvedComplaintsPct: 100
     };
 
+    const backendUrl = getBackendUrl();
+    if (!backendUrl) {
+      const db = getClientDb();
+      db.supermarkets = [newSupermarket, ...(db.supermarkets || [])];
+      saveClientDb(db);
+      setSupermarkets(db.supermarkets);
+      setMessage({ type: 'success', text: `Registered new supermarket: ${smName} [${smCode}].` });
+      setSmModalOpen(false);
+      setSmName('');
+      setSmCode('');
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
       const res = await fetch(`${backendUrl}/api/admin/supermarkets`, {
         method: 'POST',
         headers: {
@@ -143,8 +162,19 @@ export default function AdminSupermarkets() {
       supermarketId: selectedSmId || 'sm-001'
     };
 
+    const backendUrl = getBackendUrl();
+    if (!backendUrl) {
+      addStoredUser(newOfficial);
+      setMessage({ type: 'success', text: `Supermarket official account provisioned for ${offFullName} (${offEmail}).` });
+      setOfficialModalOpen(false);
+      setOffFullName('');
+      setOffEmail('');
+      setOffPassword('');
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
       const res = await fetch(`${backendUrl}/api/admin/supermarket-officials`, {
         method: 'POST',
         headers: {

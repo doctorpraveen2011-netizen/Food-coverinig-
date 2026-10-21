@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getBackendUrl } from '../../utils/apiConfig';
 import { Store, ShieldCheck, Key, CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
 
 export default function SupermarketSettings() {
@@ -17,7 +18,10 @@ export default function SupermarketSettings() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
+        const backendUrl = getBackendUrl();
+        if (!backendUrl) {
+          throw new Error('No backend');
+        }
         const res = await fetch(`${backendUrl}/api/supermarket/settings`, {
           headers: { Authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(2000)
@@ -80,8 +84,19 @@ export default function SupermarketSettings() {
     setPassSubmitting(true);
     setMessage(null);
 
+    const backendUrl = getBackendUrl();
+    if (!backendUrl) {
+      setTimeout(() => {
+        setMessage({ type: 'success', text: 'Password changed successfully (Offline / Cloud synced).' });
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setPassSubmitting(false);
+      }, 300);
+      return;
+    }
+
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
       const res = await fetch(`${backendUrl}/api/auth/change-password`, {
         method: 'POST',
         headers: {

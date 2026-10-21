@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getBackendUrl, createSafeSocket } from '../../utils/apiConfig';
 import { 
   ShieldAlert, 
   MessageSquare, 
@@ -58,7 +58,11 @@ export default function SupermarketComplaints() {
 
   const fetchComplaints = async () => {
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
+      const backendUrl = getBackendUrl();
+      if (!backendUrl) {
+        setComplaints(getStoredComplaints() as any);
+        return;
+      }
       const res = await fetch(`${backendUrl}/api/supermarket/complaints`, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(2500)
@@ -80,31 +84,31 @@ export default function SupermarketComplaints() {
   useEffect(() => {
     fetchComplaints();
 
-    const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-    const socket = io(backendUrl);
+    const socket = createSafeSocket();
+    if (socket) {
+      socket.on('newComplaint', (complaint: any) => {
+        const currentSmId = user?.supermarketId || 'sm-001';
+        const isForThisStore = complaint.supermarketId === currentSmId || 
+          (complaint.seller && complaint.seller.toLowerCase().includes('freshmart'));
+        
+        if (isForThisStore) {
+          setComplaints((prev) => [complaint, ...prev.filter(c => c.id !== complaint.id)]);
+          setLiveToast(`🚨 Live Customer Report Received: ${complaint.productName} (Ref: ${complaint.id})`);
+          setTimeout(() => setLiveToast(null), 8000);
+        }
+      });
 
-    socket.on('newComplaint', (complaint: any) => {
-      const currentSmId = user?.supermarketId || 'sm-001';
-      const isForThisStore = complaint.supermarketId === currentSmId || 
-        (complaint.seller && complaint.seller.toLowerCase().includes('freshmart'));
-      
-      if (isForThisStore) {
-        setComplaints((prev) => [complaint, ...prev.filter(c => c.id !== complaint.id)]);
-        setLiveToast(`🚨 Live Customer Report Received: ${complaint.productName} (Ref: ${complaint.id})`);
-        setTimeout(() => setLiveToast(null), 8000);
-      }
-    });
+      socket.on('supermarketComplaintUpdate', (updated: any) => {
+        setComplaints((prev) => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+      });
 
-    socket.on('supermarketComplaintUpdate', (updated: any) => {
-      setComplaints((prev) => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
-    });
-
-    socket.on('complaintUpdated', (updated: any) => {
-      setComplaints((prev) => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
-    });
+      socket.on('complaintUpdated', (updated: any) => {
+        setComplaints((prev) => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+      });
+    }
 
     return () => {
-      socket.disconnect();
+      socket?.disconnect();
     };
   }, [token, user?.supermarketId]);
 
@@ -114,8 +118,23 @@ export default function SupermarketComplaints() {
     setSubmitting(true);
     setMessage(null);
 
+    const backendUrl = getBackendUrl();
+    if (!backendUrl) {
+      const updated = updateStoredComplaint(selectedComplaint.id, { 
+        officialResponse: responseText, 
+        batchNumber: batchRef || selectedComplaint.batchNumber,
+        status: 'Investigating'
+      });
+      setComplaints(prev => prev.map(c => c.id === selectedComplaint.id ? (updated || { ...c, officialResponse: responseText, status: 'Investigating' }) : c));
+      setMessage({ type: 'success', text: `Official store response logged for case ${selectedComplaint.id}. Dispatched to consumer dashboard.` });
+      setResponseModalOpen(false);
+      setResponseText('');
+      setBatchRef('');
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
       const res = await fetch(`${backendUrl}/api/supermarket/complaints/${selectedComplaint.id}/respond`, {
         method: 'POST',
         headers: {
@@ -167,9 +186,27 @@ export default function SupermarketComplaints() {
     setMessage(null);
 
     const amt = parseFloat(refundAmount) || 150;
+    const backendUrl = getBackendUrl();
+    if (!backendUrl) {
+      const updated = updateStoredComplaint(selectedComplaint.id, {
+        status: 'Resolved',
+        refundStatus: 'Refunded',
+        refundAmount: amt,
+        refundMethod
+      });
+      setComplaints(prev => prev.map(c => c.id === selectedComplaint.id ? (updated || { ...c, status: 'Resolved', refundStatus: 'Refunded', refundAmount: amt, refundMethod }) : c));
+      setMessage({
+        type: 'success',
+        text: `💸 Cash Refund of ₹${refundAmount} successfully issued to ${selectedComplaint.reporterName || 'Customer'}! Incident resolved and synced across all portals.`
+      });
+      setRefundModalOpen(false);
+      setRefundAmount('150');
+      setRefundNotes('');
+      setSubmitting(false);
+      return;
+    }
 
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
       const res = await fetch(`${backendUrl}/api/supermarket/complaints/${selectedComplaint.id}/refund`, {
         method: 'POST',
         headers: {
@@ -223,8 +260,15 @@ export default function SupermarketComplaints() {
   };
 
   const handleStatusChange = async (complaintId: string, newStatus: string, reasonNote: string) => {
+    const backendUrl = getBackendUrl();
+    if (!backendUrl) {
+      const updated = updateStoredComplaint(complaintId, { status: newStatus });
+      setComplaints(prev => prev.map(c => c.id === complaintId ? (updated || { ...c, status: newStatus }) : c));
+      setMessage({ type: 'success', text: `Incident ${complaintId} status updated to: ${newStatus}.` });
+      return;
+    }
+
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
       const res = await fetch(`${backendUrl}/api/supermarket/complaints/${complaintId}/status`, {
         method: 'POST',
         headers: {
@@ -263,8 +307,18 @@ export default function SupermarketComplaints() {
     setSubmitting(true);
     setMessage(null);
 
+    const backendUrl = getBackendUrl();
+    if (!backendUrl) {
+      const updated = updateStoredComplaint(selectedComplaint.id, { escalated: true, status: 'Under Investigation' });
+      setComplaints(prev => prev.map(c => c.id === selectedComplaint.id ? (updated || { ...c, escalated: true, status: 'Under Investigation' }) : c));
+      setMessage({ type: 'success', text: `Case ${selectedComplaint.id} escalated to Head Office Food Safety Enforcement.` });
+      setEscalateModalOpen(false);
+      setEscalationReason('');
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
       const res = await fetch(`${backendUrl}/api/supermarket/complaints/${selectedComplaint.id}/escalate`, {
         method: 'POST',
         headers: {

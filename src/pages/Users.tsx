@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { getBackendUrl } from '../utils/apiConfig';
 import { 
   Users as UsersIcon, 
   ShieldCheck, 
@@ -292,9 +293,20 @@ export default function Users() {
     try {
       setIsLoading(true);
       const token = useAuthStore.getState().token;
-      const backendUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-        ? 'http://localhost:5000' 
-        : `http://${window.location.hostname}:5000`;
+      const backendUrl = getBackendUrl();
+      if (!backendUrl) {
+        const stored = getStoredUsers();
+        setDbUsers(stored as any);
+        setSummary({
+          total: stored.length,
+          active: stored.filter(u => u.isActive).length,
+          admins: stored.filter(u => u.role === 'HEAD_OFFICE_ADMIN').length,
+          supermarkets: stored.filter(u => u.role === 'SUPERMARKET_OFFICIAL').length,
+          citizens: stored.filter(u => u.role === 'NORMAL_USER').length,
+          volunteers: stored.filter(u => u.role === 'VOLUNTEER').length
+        });
+        return;
+      }
       
       const res = await fetch(`${backendUrl}/api/admin/users`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -363,19 +375,18 @@ export default function Users() {
     const newStatus = !user.isActive;
     try {
       const token = useAuthStore.getState().token;
-      const backendUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-        ? 'http://localhost:5000' 
-        : `http://${window.location.hostname}:5000`;
-      
-      fetch(`${backendUrl}/api/admin/users/${user.id}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({ isActive: newStatus }),
-        signal: AbortSignal.timeout(2000)
-      }).catch(() => {});
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        fetch(`${backendUrl}/api/admin/users/${user.id}/status`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ isActive: newStatus }),
+          signal: AbortSignal.timeout(2000)
+        }).catch(() => {});
+      }
     } catch (err) {}
     
     // Always persist to client-side store

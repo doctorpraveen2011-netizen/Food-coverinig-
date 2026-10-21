@@ -32,7 +32,8 @@ import {
   CheckCheck
 } from 'lucide-react';
 import { DeliveryHandoverOtpModal } from '../../components/donations/DeliveryHandoverOtpModal';
-import { getStoredUserDashboard } from '../../data/mockDatabase';
+import { getStoredUserDashboard, updateStoredDonation } from '../../data/mockDatabase';
+import { getBackendUrl, createSafeSocket } from '../../utils/apiConfig';
 
 export default function UserDashboard() {
   const navigate = useNavigate();
@@ -50,35 +51,38 @@ export default function UserDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchDashboard = async () => {
-    try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/user/dashboard`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(2500)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDashboardData(data);
-        if (data.recentScans && data.recentScans.length > 0) {
-          useAnalysisStore.getState().syncScans(data.recentScans);
+    const backendUrl = getBackendUrl();
+    if (backendUrl) {
+      try {
+        const res = await fetch(`${backendUrl}/api/user/dashboard`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(2500)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDashboardData(data);
+          if (data.recentScans && data.recentScans.length > 0) {
+            useAnalysisStore.getState().syncScans(data.recentScans);
+          }
+          setLoading(false);
+          return;
         }
-        return;
+      } catch (err) {
+        // Fall through to offline fallback
       }
-      throw new Error('Server non-ok');
-    } catch (err) {
-      // Offline / Public Fallback: load real user dashboard data from mockDatabase
-      const fallbackData = getStoredUserDashboard(user?.id || 'usr-normal-praveen');
-      setDashboardData(fallbackData);
-    } finally {
-      setLoading(false);
     }
+
+    // Offline / Public Fallback: load real user dashboard data from mockDatabase
+    const fallbackData = getStoredUserDashboard(user?.id || 'usr-normal-praveen');
+    setDashboardData(fallbackData);
+    setLoading(false);
   };
 
   useEffect(() => {
     fetchDashboard();
 
-    const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-    const socket = io(backendUrl);
+    const socket = createSafeSocket();
+    if (!socket) return;
 
     socket.on('userComplaintUpdate', () => {
       fetchDashboard();
@@ -126,14 +130,15 @@ export default function UserDashboard() {
       return;
     }
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/user/donations/${donationId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchDashboard();
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        await fetch(`${backendUrl}/api/user/donations/${donationId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
       }
+      updateStoredDonation(donationId, { status: 'Cancelled' });
+      fetchDashboard();
     } catch (err) {
       console.error('Failed to delete donation', err);
     }
@@ -150,17 +155,32 @@ export default function UserDashboard() {
       setQuickScanning(true);
       setQuickScanSuccess(null);
       try {
-        const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-        const res = await fetch(`${backendUrl}/api/v1/analyze`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify({ image: dataUrl, filename: file.name, mode: 'general' })
-        });
-        if (res.ok) {
-          const prediction = await res.json();
+        const backendUrl = getBackendUrl();
+        let prediction: any = null;
+
+        if (backendUrl) {
+          try {
+            const res = await fetch(`${backendUrl}/api/v1/analyze`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+              },
+              body: JSON.stringify({ image: dataUrl, filename: file.name, mode: 'general' }),
+              signal: AbortSignal.timeout(3000)
+            });
+            if (res.ok) {
+              prediction = await res.json();
+            }
+          } catch {}
+        }
+
+        if (!prediction) {
+          const { ClientAiEngine } = await import('../../utils/clientAiEngine');
+          prediction = await ClientAiEngine.analyze(dataUrl, { filename: file.name });
+        }
+
+        if (prediction) {
           const foodName = prediction.display_name || prediction.detected_food || prediction.food || 'Scanned Food';
           const freshnessVal = prediction.freshness || (prediction.prediction === 'fresh' ? 'Fresh' : prediction.prediction === 'spoiled' ? 'Spoiled' : 'Moderate');
           const riskVal = prediction.risk || (freshnessVal === 'Spoiled' ? 'High' : freshnessVal === 'Moderate' ? 'Medium' : 'Low');

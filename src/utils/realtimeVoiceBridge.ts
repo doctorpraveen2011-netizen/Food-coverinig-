@@ -1,8 +1,5 @@
-import { io, Socket } from 'socket.io-client';
-
-const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-  ? 'http://localhost:5000'
-  : `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:5000`;
+import { Socket } from 'socket.io-client';
+import { createSafeSocket } from './apiConfig';
 
 export interface VoiceBridgeSession {
   stop: () => void;
@@ -12,9 +9,9 @@ export interface VoiceBridgeSession {
 
 let activeSocket: Socket | null = null;
 
-function getSocket(): Socket {
+function getSocket(): Socket | null {
   if (!activeSocket) {
-    activeSocket = io(API_BASE);
+    activeSocket = createSafeSocket();
   }
   return activeSocket;
 }
@@ -39,7 +36,7 @@ export function startVoiceBridge({
   const room = `voice:${channelId}`;
 
   // Join the voice channel
-  socket.emit('voice:join', { channelId, userId, userName });
+  socket?.emit('voice:join', { channelId, userId, userName });
 
   let audioCtx: AudioContext | null = null;
   let monitorGain: GainNode | null = null;
@@ -67,7 +64,7 @@ export function startVoiceBridge({
 
   // Listen to incoming audio from other peer on this channel
   const handleIncomingAudio = async (data: { audioBase64: string; userId?: string; socketId?: string }) => {
-    if (data.socketId === socket.id) return; // Don't replay own chunks
+    if (socket && data.socketId === socket.id) return; // Don't replay own chunks
     try {
       const ctx = initAudioCtx();
       if (!ctx) return;
@@ -100,8 +97,8 @@ export function startVoiceBridge({
     onPeerSpeaking?.(data.isSpeaking);
   };
 
-  socket.on('voice:incoming-audio', handleIncomingAudio);
-  socket.on('voice:peer-speaking', handlePeerSpeaking);
+  socket?.on('voice:incoming-audio', handleIncomingAudio);
+  socket?.on('voice:peer-speaking', handlePeerSpeaking);
 
   // Capture local microphone and stream chunks over Socket.IO
   if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
@@ -129,12 +126,12 @@ export function startVoiceBridge({
             : new MediaRecorder(stream);
 
           mediaRecorder.ondataavailable = async (e) => {
-            if (e.data && e.data.size > 0 && socket.connected) {
+            if (e.data && e.data.size > 0 && socket?.connected) {
               const reader = new FileReader();
               reader.onloadend = () => {
                 const base64data = (reader.result as string)?.split(',')[1];
                 if (base64data) {
-                  socket.emit('voice:audio-chunk', {
+                  socket?.emit('voice:audio-chunk', {
                     channelId,
                     userId,
                     audioBase64: base64data
@@ -158,9 +155,9 @@ export function startVoiceBridge({
 
   return {
     stop: () => {
-      socket.off('voice:incoming-audio', handleIncomingAudio);
-      socket.off('voice:peer-speaking', handlePeerSpeaking);
-      socket.emit('voice:leave', { channelId });
+      socket?.off('voice:incoming-audio', handleIncomingAudio);
+      socket?.off('voice:peer-speaking', handlePeerSpeaking);
+      socket?.emit('voice:leave', { channelId });
 
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         try { mediaRecorder.stop(); } catch {}

@@ -1,5 +1,6 @@
 import { useAnalysisStore, type AnalyzedFood } from '../store/useAnalysisStore';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { getBackendUrl } from '../utils/apiConfig';
 import { 
   Download, Printer, Send, ShieldCheck,
   CheckCircle2, AlertCircle, Info, Activity, Droplets, Wind, Thermometer,
@@ -45,7 +46,8 @@ export default function Reports() {
 
   useEffect(() => {
     if (!location.state?.latestScanResult && (!history || history.length === 0)) {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
+      const backendUrl = getBackendUrl();
+      if (!backendUrl) return;
       fetch(`${backendUrl}/api/ai/history?limit=1`)
         .then(r => r.json())
         .then(data => {

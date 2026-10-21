@@ -22,6 +22,7 @@ import { normalizePhone } from '../../utils/phoneUtils';
 import DonationRouteMap, { type DonationRouteMapRef, type TrackingData } from '../../components/tracking/DonationRouteMap';
 import DeliveryHandoverOtpModal from '../../components/donations/DeliveryHandoverOtpModal';
 import { getStoredDonations } from '../../data/mockDatabase';
+import { getBackendUrl } from '../../utils/apiConfig';
 
 export default function UserTracking() {
   const user = useAuthStore((state) => state.user);
@@ -40,56 +41,54 @@ export default function UserTracking() {
     if (!isSilent) setLoading(true);
     setError(null);
 
-    try {
-      const backendUrl = window.location.hostname === 'localhost' 
-        ? 'http://localhost:5000' 
-        : `http://${window.location.hostname}:5000`;
-
-      const endpoint = user?.role === 'SUPERMARKET_OFFICIAL' ? '/api/supermarket/tracking' : '/api/user/tracking';
-      const res = await fetch(`${backendUrl}${endpoint}`, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        signal: AbortSignal.timeout(2500)
-      });
-
-      if (!res.ok) {
-        throw new Error(`Server returned status ${res.status}`);
-      }
-
-      const data = await res.json();
-      setRawPayload(data);
-      setLastFetchTime(new Date());
-    } catch (err: any) {
-      // Offline / Public Fallback: load active donation from mockDatabase
-      const donations = getStoredDonations();
-      const active = donations.find(d => d.status === 'In Transit') || donations[0];
-      if (active) {
-        setRawPayload({
-          activeDonation: active,
-          tracking: {
-            statusText: 'Volunteer En Route (Live Fleet GPS)',
-            etaMinutes: 14,
-            distanceKm: 4.2,
-            credentialPointsAward: 185,
-            telemetry: {
-              speedKmh: 32,
-              speedUnit: 'km/h',
-              gpsAccuracyMeters: 2.8,
-              trafficCondition: 'Fluid Transit Corridor',
-              heading: 135
-            }
-          }
+    const backendUrl = getBackendUrl();
+    if (backendUrl) {
+      try {
+        const endpoint = user?.role === 'SUPERMARKET_OFFICIAL' ? '/api/supermarket/tracking' : '/api/user/tracking';
+        const res = await fetch(`${backendUrl}${endpoint}`, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          signal: AbortSignal.timeout(2500)
         });
-        setLastFetchTime(new Date());
-        setError(null);
-      } else if (!isSilent) {
-        setError(err.message || 'Unable to load tracking information');
+
+        if (res.ok) {
+          const data = await res.json();
+          setRawPayload(data);
+          setLastFetchTime(new Date());
+          if (!isSilent) setLoading(false);
+          return;
+        }
+      } catch (err: any) {
+        // Fall through to offline fallback
       }
-    } finally {
-      if (!isSilent) setLoading(false);
     }
+
+    // Offline / Public Fallback: load active donation from mockDatabase
+    const donations = getStoredDonations();
+    const active = donations.find(d => d.status === 'In Transit') || donations[0];
+    if (active) {
+      setRawPayload({
+        activeDonation: active,
+        tracking: {
+          statusText: 'Volunteer En Route (Live Fleet GPS)',
+          etaMinutes: 14,
+          distanceKm: 4.2,
+          credentialPointsAward: 185,
+          telemetry: {
+            speedKmh: 32,
+            speedUnit: 'km/h',
+            gpsAccuracyMeters: 2.8,
+            trafficCondition: 'Fluid Transit Corridor',
+            heading: 135
+          }
+        }
+      });
+      setLastFetchTime(new Date());
+      setError(null);
+    }
+    if (!isSilent) setLoading(false);
   }, [token, user?.role]);
 
   // Initial load

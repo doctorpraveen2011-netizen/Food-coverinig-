@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Cpu, HardDrive, Wifi, Server, RotateCw } from 'lucide-react';
 import { usePipelineStore } from '../../store/usePipelineStore';
+import { getBackendUrl } from '../../utils/apiConfig';
 
 interface InfrastructureMetrics {
   status: 'Online' | 'Degraded' | 'Offline';
@@ -38,20 +39,24 @@ export default function LiveInfrastructureCard() {
   const fetchMetrics = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/v1/system/infrastructure`);
-      if (res.ok) {
-        const data = await res.json();
-        setMetrics({
-          status: data.status || 'Online',
-          cpuUsage: typeof data.cpuUsage === 'number' ? data.cpuUsage : 11,
-          memoryUsage: typeof data.memoryUsage === 'number' ? data.memoryUsage : 12,
-          latency: typeof data.latency === 'number' ? data.latency : 26,
-          lastUpdatedText: formatTimestamp(new Date()),
-          summary: data.summary || 'All services are running normally.'
-        });
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        try {
+          const res = await fetch(`${backendUrl}/api/v1/system/infrastructure`, { signal: AbortSignal.timeout(2000) });
+          if (res.ok) {
+            const data = await res.json();
+            setMetrics({
+              status: data.status || 'Online',
+              cpuUsage: typeof data.cpuUsage === 'number' ? data.cpuUsage : 11,
+              memoryUsage: typeof data.memoryUsage === 'number' ? data.memoryUsage : 12,
+              latency: typeof data.latency === 'number' ? data.latency : 26,
+              lastUpdatedText: formatTimestamp(new Date()),
+              summary: data.summary || 'All services are running normally.'
+            });
+            return;
+          }
+        } catch (e) {}
       }
-    } catch (e) {
       if (systemMetrics && systemMetrics.cpuUsage > 0) {
         setMetrics(prev => ({
           ...prev,

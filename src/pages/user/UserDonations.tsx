@@ -26,6 +26,7 @@ import {
 import CallContactButton from '../../components/common/CallContactButton';
 import { normalizePhone } from '../../utils/phoneUtils';
 import { getStoredDonations, addStoredDonation, getClientDb, saveClientDb } from '../../data/mockDatabase';
+import { getBackendUrl } from '../../utils/apiConfig';
 import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -216,32 +217,35 @@ export default function UserDonations() {
   }, [location.state, location.search]);
 
   const fetchDonations = async () => {
-    try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/user/donations`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(2500)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const records = data.donations || [];
-        setDonations(records);
-        if (records.length > 0 && !expandedDonationId) {
-          setExpandedDonationId(records[0].id);
+    const backendUrl = getBackendUrl();
+    if (backendUrl) {
+      try {
+        const res = await fetch(`${backendUrl}/api/user/donations`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(2500)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const records = data.donations || [];
+          setDonations(records);
+          if (records.length > 0 && !expandedDonationId) {
+            setExpandedDonationId(records[0].id);
+          }
+          setLoading(false);
+          return;
         }
-        return;
+      } catch (err) {
+        // Fall through to offline fallback
       }
-      throw new Error('Server non-ok');
-    } catch (err) {
-      // Offline / Public Fallback: load donations from mockDatabase
-      const stored = getStoredDonations();
-      setDonations(stored as any);
-      if (stored.length > 0 && !expandedDonationId) {
-        setExpandedDonationId(stored[0].id);
-      }
-    } finally {
-      setLoading(false);
     }
+
+    // Offline / Public Fallback: load donations from mockDatabase
+    const stored = getStoredDonations();
+    setDonations(stored as any);
+    if (stored.length > 0 && !expandedDonationId) {
+      setExpandedDonationId(stored[0].id);
+    }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -254,31 +258,32 @@ export default function UserDonations() {
       return;
     }
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/user/donations/${donationId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(2000)
-      });
-      if (res.ok) {
-        setMessage({ type: 'success', text: 'Donation has been cancelled and removed.' });
-        await fetchDonations();
-        if (expandedDonationId === donationId) {
-          setExpandedDonationId(null);
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        const res = await fetch(`${backendUrl}/api/user/donations/${donationId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(2000)
+        });
+        if (res.ok) {
+          setMessage({ type: 'success', text: 'Donation has been cancelled and removed.' });
+          await fetchDonations();
+          if (expandedDonationId === donationId) {
+            setExpandedDonationId(null);
+          }
+          return;
         }
-        return;
       }
-      throw new Error('Server non-ok');
-    } catch {
-      // Offline fallback: delete from mockDatabase
-      const db = getClientDb();
-      db.donations = (db.donations || []).filter((d: any) => d.id !== donationId);
-      saveClientDb(db);
-      setDonations(db.donations);
-      setMessage({ type: 'success', text: 'Donation has been cancelled and removed.' });
-      if (expandedDonationId === donationId) {
-        setExpandedDonationId(null);
-      }
+    } catch {}
+
+    // Offline fallback: delete from mockDatabase
+    const db = getClientDb();
+    db.donations = (db.donations || []).filter((d: any) => d.id !== donationId);
+    saveClientDb(db);
+    setMessage({ type: 'success', text: 'Donation has been cancelled and removed.' });
+    await fetchDonations();
+    if (expandedDonationId === donationId) {
+      setExpandedDonationId(null);
     }
   };
 
@@ -313,35 +318,36 @@ export default function UserDonations() {
     };
 
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/user/donations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(donationData),
-        signal: AbortSignal.timeout(2000)
-      });
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        const res = await fetch(`${backendUrl}/api/user/donations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(donationData),
+          signal: AbortSignal.timeout(2000)
+        });
 
-      if (res.ok) {
-        const data = await res.json();
-        setMessage({ type: 'success', text: 'Surplus donation request registered! Volunteer assigned for pickup.' });
-        setModalOpen(false);
-        setFoodItems('');
-        setQuantity('');
-        setWeight('');
-        setNotes('');
-        setPickupTime('');
-        setIsFromAiScan(false);
-        await fetchDonations();
-        if (data.donation?.id) {
-          setExpandedDonationId(data.donation.id);
+        if (res.ok) {
+          const data = await res.json();
+          setMessage({ type: 'success', text: 'Surplus donation request registered! Volunteer assigned for pickup.' });
+          setModalOpen(false);
+          setFoodItems('');
+          setQuantity('');
+          setWeight('');
+          setNotes('');
+          setPickupTime('');
+          setIsFromAiScan(false);
+          await fetchDonations();
+          if (data.donation?.id) {
+            setExpandedDonationId(data.donation.id);
+          }
+          return;
         }
-        return;
       }
-      throw new Error('Server non-ok');
-    } catch {
+
       // Offline fallback: save into mockDatabase
       const created = addStoredDonation(donationData);
       setDonations(prev => [created as any, ...prev]);
@@ -354,6 +360,8 @@ export default function UserDonations() {
       setNotes('');
       setPickupTime('');
       setIsFromAiScan(false);
+    } catch (err) {
+      console.error(err);
     } finally {
       setSubmitting(false);
     }

@@ -7,6 +7,7 @@ import {
 } from '../../utils/phoneUtils';
 import { useTelecomStore } from '../../store/useTelecomStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { getBackendUrl } from '../../utils/apiConfig';
 
 interface CallContactButtonProps {
   label?: string;
@@ -126,18 +127,18 @@ export default function CallContactButton({
     // 4. Record real audit event asynchronously
     if (refId) {
       try {
-        const backendUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-          ? 'http://localhost:5000' 
-          : `http://${window.location.hostname}:5000`;
-        
-        fetch(`${backendUrl}/api/supermarket/complaints/${refId}/contact-audit`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify({ contactMethod: 'whatsapp' })
-        }).catch(() => {});
+        const backendUrl = getBackendUrl();
+        if (backendUrl) {
+          fetch(`${backendUrl}/api/supermarket/complaints/${refId}/contact-audit`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ contactMethod: 'whatsapp' }),
+            signal: AbortSignal.timeout(2000)
+          }).catch(() => {});
+        }
       } catch {}
     }
 

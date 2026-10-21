@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useAnalysisStore } from '../store/useAnalysisStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { getBackendUrl } from '../utils/apiConfig';
 import { useNavigate } from 'react-router-dom';
 import { ClientAiEngine } from '../utils/clientAiEngine';
 
@@ -67,7 +68,8 @@ export default function FoodAnalysis() {
   useEffect(() => {
     const fetchMlStatus = async () => {
       try {
-        const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
+        const backendUrl = getBackendUrl();
+        if (!backendUrl) return;
         const res = await fetch(`${backendUrl}/api/v1/ml/status`);
         if (res.ok) {
           const data = await res.json();
@@ -153,84 +155,87 @@ export default function FoodAnalysis() {
     setIsAnalyzing(true);
     setSyncNotice(null);
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const response = await fetch(`${backendUrl}/api/v1/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({ image: dataUrl, filename: fileName, mode: analysisMode }),
-        signal: AbortSignal.timeout(3000)
-      });
-
-      if (!response.ok) {
-        throw new Error('Analysis failed');
-      }
-
-      const prediction = await response.json();
-      const { food, freshness, risk, confidence, shelfLife, recommendation } = prediction;
-
-      // Heuristics for Sensors
-      let temp = prediction.sensorData?.temperature || '22°C';
-      let hum = prediction.sensorData?.humidity || (Math.floor(Math.random() * 20 + 40) + '%');
-      let gas = prediction.sensorData?.gasVoc || 'Normal';
-      let pHVal = prediction.sensorData?.pH || (Math.random() * 2 + 5).toFixed(1);
-      let gasColor = 'text-green-600';
-
-      if (risk === 'Medium' || risk === 'High' || freshness === 'Spoiled') {
-        gas = 'Elevated';
-        gasColor = 'text-rose-600';
-        pHVal = (Math.random() * 2 + 3).toFixed(1);
-      }
-
-      const sensorPayload = {
-        temperature: temp,
-        humidity: hum,
-        gasVoc: gas,
-        pH: pHVal,
-        gasVocColor: gasColor
-      };
-
-      setSensorData(sensorPayload);
-
-      addAnalysis({
-        food,
-        displayName: prediction.displayName || food,
-        freshness,
-        risk,
-        confidence,
-        shelfLife,
-        imageUrl: dataUrl,
-        recommendation,
-        degradability: prediction.degradability,
-        category: prediction.category,
-        ecoImpact: prediction.ecoImpact,
-        action: prediction.action,
-        gradcam_image: prediction.gradcam_image,
-        probabilities: prediction.probabilities,
-        mode: prediction.mode || analysisMode,
-        bio_probability: prediction.bio_probability,
-        non_bio_probability: prediction.non_bio_probability,
-        sensorData: sensorPayload
-      });
-
-      setResult({
-        ...prediction,
-        imageUrl: dataUrl,
-        sensorData: sensorPayload
-      });
-
-      setSyncNotice('Dashboard KPIs, Central Quality Charts & Action Queues have been updated with this scan result!');
-
-      if (prediction.gradcam_image) {
-        setActiveViewMode('gradcam');
-      }
-
-    } catch (error) {
-      console.warn('Backend unavailable, running client-side ClientAiEngine inference:', error);
+      const backendUrl = getBackendUrl();
+    if (backendUrl) {
       try {
-        const clientResult = await ClientAiEngine.analyze(dataUrl, {
+        const response = await fetch(`${backendUrl}/api/v1/analyze`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ image: dataUrl, filename: fileName, mode: analysisMode }),
+          signal: AbortSignal.timeout(3000)
+        });
+
+        if (response.ok) {
+          const prediction = await response.json();
+          const { food, freshness, risk, confidence, shelfLife, recommendation } = prediction;
+
+          // Heuristics for Sensors
+          let temp = prediction.sensorData?.temperature || '22°C';
+          let hum = prediction.sensorData?.humidity || (Math.floor(Math.random() * 20 + 40) + '%');
+          let gas = prediction.sensorData?.gasVoc || 'Normal';
+          let pHVal = prediction.sensorData?.pH || (Math.random() * 2 + 5).toFixed(1);
+          let gasColor = 'text-green-600';
+
+          if (risk === 'Medium' || risk === 'High' || freshness === 'Spoiled') {
+            gas = 'Elevated';
+            gasColor = 'text-rose-600';
+            pHVal = (Math.random() * 2 + 3).toFixed(1);
+          }
+
+          const sensorPayload = {
+            temperature: temp,
+            humidity: hum,
+            gasVoc: gas,
+            pH: pHVal,
+            gasVocColor: gasColor
+          };
+
+          setSensorData(sensorPayload);
+
+          addAnalysis({
+            food,
+            displayName: prediction.displayName || food,
+            freshness,
+            risk,
+            confidence,
+            shelfLife,
+            imageUrl: dataUrl,
+            recommendation,
+            degradability: prediction.degradability,
+            category: prediction.category,
+            ecoImpact: prediction.ecoImpact,
+            action: prediction.action,
+            gradcam_image: prediction.gradcam_image,
+            probabilities: prediction.probabilities,
+            mode: prediction.mode || analysisMode,
+            bio_probability: prediction.bio_probability,
+            non_bio_probability: prediction.non_bio_probability,
+            sensorData: sensorPayload
+          });
+
+          setResult({
+            ...prediction,
+            imageUrl: dataUrl,
+            sensorData: sensorPayload
+          });
+
+          setSyncNotice('Dashboard KPIs, Central Quality Charts & Action Queues have been updated with this scan result!');
+
+          if (prediction.gradcam_image) {
+            setActiveViewMode('gradcam');
+          }
+          setIsAnalyzing(false);
+          return;
+        }
+      } catch (error) {
+        console.warn('Backend unavailable, running client-side ClientAiEngine inference:', error);
+      }
+    }
+    try {
+      const clientResult = await ClientAiEngine.analyze(dataUrl, {
           mode: analysisMode === 'food_freshness' ? 'freshness' : analysisMode === 'waste_segregation' ? 'waste' : 'auto',
           filename: fileName || 'sample_analysis.jpg'
         });

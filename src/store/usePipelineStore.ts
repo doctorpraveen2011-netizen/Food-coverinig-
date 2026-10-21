@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
+import { getBackendUrl, createSafeSocket } from '../utils/apiConfig';
 
 interface KPI {
   totalDonations: number;
@@ -251,37 +252,38 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   clearMapAction: () => set({ mapAction: null }),
 
   connect: () => {
-    // Only attempt real socket connection if running on localhost or custom live backend domain
-    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    const backendUrl = getBackendUrl();
+    if (backendUrl) {
       try {
-        const socket = io('http://localhost:5000', { reconnectionAttempts: 2, timeout: 2000 });
-
-        socket.on('connect', () => {
-          set({ isConnected: true });
-          if (offlineSimulationTimer) {
-            clearInterval(offlineSimulationTimer);
-            offlineSimulationTimer = null;
-          }
-        });
-
-        socket.on('disconnect', () => {
-          set({ isConnected: false });
-        });
-
-        socket.on('pipelineData', (data: any) => {
-          set({
-            kpi: data.kpi || get().kpi,
-            tracking: data.tracking || get().tracking,
-            cityMap: data.cityMap || get().cityMap,
-            systemMetrics: data.systemMetrics || get().systemMetrics,
-            activity: data.activity || get().activity,
-            charts: data.charts || get().charts,
-            tables: data.tables || get().tables
+        const socket = createSafeSocket({ timeout: 2000 });
+        if (socket) {
+          socket.on('connect', () => {
+            set({ isConnected: true });
+            if (offlineSimulationTimer) {
+              clearInterval(offlineSimulationTimer);
+              offlineSimulationTimer = null;
+            }
           });
-        });
 
-        set({ socket });
-        return;
+          socket.on('disconnect', () => {
+            set({ isConnected: false });
+          });
+
+          socket.on('pipelineData', (data: any) => {
+            set({
+              kpi: data.kpi || get().kpi,
+              tracking: data.tracking || get().tracking,
+              cityMap: data.cityMap || get().cityMap,
+              systemMetrics: data.systemMetrics || get().systemMetrics,
+              activity: data.activity || get().activity,
+              charts: data.charts || get().charts,
+              tables: data.tables || get().tables
+            });
+          });
+
+          set({ socket });
+          return;
+        }
       } catch {
         // Fall through to local animation pulse
       }

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { io } from 'socket.io-client';
 import { useAuthStore } from '../../store/useAuthStore';
 import { getStoredSupermarketDashboard } from '../../data/mockDatabase';
+import { getBackendUrl, createSafeSocket } from '../../utils/apiConfig';
 import { 
   Store, 
   Package, 
@@ -30,30 +30,33 @@ export default function SupermarketDashboard() {
 
   useEffect(() => {
     const fetchSupermarketDashboard = async () => {
-      try {
-        const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-        const res = await fetch(`${backendUrl}/api/supermarket/dashboard`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(2500)
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setDashboardData(data);
-          return;
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        try {
+          const res = await fetch(`${backendUrl}/api/supermarket/dashboard`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(2500)
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setDashboardData(data);
+            setLoading(false);
+            return;
+          }
+        } catch (err) {
+          // Fall through to offline fallback
         }
-        throw new Error('Server non-ok');
-      } catch (err) {
-        // Offline / Public Fallback: load supermarket data from mockDatabase
-        const fallback = getStoredSupermarketDashboard(user?.supermarketId || 'sm-001');
-        setDashboardData(fallback);
-      } finally {
-        setLoading(false);
       }
+
+      // Offline / Public Fallback: load supermarket data from mockDatabase
+      const fallback = getStoredSupermarketDashboard(user?.supermarketId || 'sm-001');
+      setDashboardData(fallback);
+      setLoading(false);
     };
     fetchSupermarketDashboard();
 
-    const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-    const socket = io(backendUrl);
+    const socket = createSafeSocket();
+    if (!socket) return;
 
     socket.on('newComplaint', (complaint: any) => {
       const currentSmId = user?.supermarketId || 'sm-001';

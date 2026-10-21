@@ -23,6 +23,7 @@ import CallContactButton from '../../components/common/CallContactButton';
 import { normalizePhone } from '../../utils/phoneUtils';
 import DonationRouteMap, { type TrackingData } from '../../components/tracking/DonationRouteMap';
 import { getStoredDonations, addStoredDonation, updateStoredDonation } from '../../data/mockDatabase';
+import { getBackendUrl } from '../../utils/apiConfig';
 
 export default function SupermarketDonations() {
   const token = useAuthStore((state) => state.token);
@@ -43,24 +44,27 @@ export default function SupermarketDonations() {
   const [notes, setNotes] = useState('');
 
   const fetchDonations = async () => {
-    try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/supermarket/donations`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(2500)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDonations(data.donations || []);
-        return;
+    const backendUrl = getBackendUrl();
+    if (backendUrl) {
+      try {
+        const res = await fetch(`${backendUrl}/api/supermarket/donations`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(2500)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDonations(data.donations || []);
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        // Fall through to offline fallback
       }
-      throw new Error('Server non-ok');
-    } catch (err) {
-      // Offline / Public Fallback: load donations from mockDatabase
-      setDonations(getStoredDonations() as any);
-    } finally {
-      setLoading(false);
     }
+
+    // Offline / Public Fallback: load donations from mockDatabase
+    setDonations(getStoredDonations() as any);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -118,73 +122,74 @@ export default function SupermarketDonations() {
     };
 
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/supermarket/donations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(donationPayload),
-        signal: AbortSignal.timeout(2000)
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setMessage({ 
-          type: 'success', 
-          text: `Surplus donation created! Routing to ${receiver}. +${data.donation?.creditPoints || previewPoints} Sustainability Credit Points added to your store credentials.` 
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        const res = await fetch(`${backendUrl}/api/supermarket/donations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(donationPayload),
+          signal: AbortSignal.timeout(2000)
         });
-        setModalOpen(false);
-        setFoodItems('');
-        setNotes('');
-        fetchDonations();
-        return;
+
+        if (res.ok) {
+          const data = await res.json();
+          setMessage({ 
+            type: 'success', 
+            text: `Surplus donation created! Routing to ${receiver}. +${data.donation?.creditPoints || previewPoints} Sustainability Credit Points added to your store credentials.` 
+          });
+          setModalOpen(false);
+          setFoodItems('');
+          setNotes('');
+          fetchDonations();
+          return;
+        }
       }
-      throw new Error('Server non-ok');
-    } catch {
-      // Offline fallback: save to mockDatabase
-      const created = addStoredDonation(donationPayload);
-      setDonations(prev => [created, ...prev]);
-      setMessage({ 
-        type: 'success', 
-        text: `Surplus donation created! Routing to ${receiver}. +${previewPoints} Sustainability Credit Points added to your store credentials.` 
-      });
-      setModalOpen(false);
-      setFoodItems('');
-      setNotes('');
-    } finally {
-      setSubmitting(false);
-    }
+    } catch {}
+
+    // Offline fallback: save to mockDatabase
+    const created = addStoredDonation(donationPayload);
+    setDonations(prev => [created, ...prev]);
+    setMessage({ 
+      type: 'success', 
+      text: `Surplus donation created! Routing to ${receiver}. +${previewPoints} Sustainability Credit Points added to your store credentials.` 
+    });
+    setModalOpen(false);
+    setFoodItems('');
+    setNotes('');
+    setSubmitting(false);
   };
 
   const handleHandover = async (donationId: string) => {
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/supermarket/donations/${donationId}/handover`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(2000)
-      });
-
-      if (res.ok) {
-        setMessage({ 
-          type: 'success', 
-          text: `Handover confirmed for batch ${donationId}! Volunteer is now Out for Delivery (+10 Transit Bonus Points credited).` 
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        const res = await fetch(`${backendUrl}/api/supermarket/donations/${donationId}/handover`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(2000)
         });
-        fetchDonations();
-        return;
+
+        if (res.ok) {
+          setMessage({ 
+            type: 'success', 
+            text: `Handover confirmed for batch ${donationId}! Volunteer is now Out for Delivery (+10 Transit Bonus Points credited).` 
+          });
+          fetchDonations();
+          return;
+        }
       }
-      throw new Error('Server non-ok');
-    } catch {
-      // Offline fallback: update stored donation
-      updateStoredDonation(donationId, { status: 'In Transit', statusBadgeText: 'Vehicle On Road' });
-      setDonations(prev => prev.map(d => d.id === donationId ? { ...d, status: 'In Transit', statusBadgeText: 'Vehicle On Road' } : d));
-      setMessage({ 
-        type: 'success', 
-        text: `Handover confirmed for batch ${donationId}! Volunteer is now Out for Delivery (+10 Transit Bonus Points credited).` 
-      });
-    }
+    } catch {}
+
+    // Offline fallback: update stored donation
+    updateStoredDonation(donationId, { status: 'In Transit', statusBadgeText: 'Vehicle On Road' });
+    setDonations(prev => prev.map(d => d.id === donationId ? { ...d, status: 'In Transit', statusBadgeText: 'Vehicle On Road' } : d));
+    setMessage({ 
+      type: 'success', 
+      text: `Handover confirmed for batch ${donationId}! Volunteer is now Out for Delivery (+10 Transit Bonus Points credited).` 
+    });
   };
 
   // Helper to build normalized tracking data for the food-delivery map & timeline

@@ -43,6 +43,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet'
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAuthStore } from '../store/useAuthStore';
+import { getBackendUrl } from '../utils/apiConfig';
 import { ClientAiEngine } from '../utils/clientAiEngine';
 import { getStoredWasteStats, getStoredFacilities, saveStoredWasteScan } from '../data/mockDatabase';
 
@@ -171,13 +172,15 @@ export default function WasteAnalysis() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const getBackendUrl = () => {
-    return window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-  };
-
   const loadStatsAndHistory = async () => {
     try {
       const url = getBackendUrl();
+      if (!url) {
+        setStats(getStoredWasteStats());
+        setFacilities(getStoredFacilities());
+        setMlStatus({ online: true, service: 'Client-Side Neural Core', model: 'MobileNetV3 Waste Segregator' });
+        return;
+      }
       const [resStats, resHist, resFac, resMl] = await Promise.all([
         fetch(`${url}/api/ai/waste/stats`, { signal: AbortSignal.timeout(2500) }),
         fetch(`${url}/api/ai/waste/history?limit=10`, { signal: AbortSignal.timeout(2500) }),
@@ -239,42 +242,47 @@ export default function WasteAnalysis() {
 
     try {
       const backendUrl = getBackendUrl();
-      const res = await fetch(`${backendUrl}/api/ai/waste/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: uploadedImage,
-          filename: selectedFileName,
-          userId: user?.id,
-          userName: user?.fullName
-        }),
-        signal: AbortSignal.timeout(3000)
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setResult(data);
-        saveStoredWasteScan({
-          analysis_id: data.analysis_id || 'AI-' + Date.now().toString().slice(-6),
-          image: uploadedImage,
-          predicted_class: data.prediction || data.detected_class || 'food_waste',
-          display_name: data.display_name || data.detected_item || 'Waste Item',
-          confidence: data.confidence || 0.9,
-          confidence_pct: data.confidence_pct || '90%',
-          waste_group: data.waste_group || 'Non-Biodegradable',
-          recommended_action: data.recommended_action || 'Process at approved center',
-          processing_route: data.processing_route || data.suggested_processing || 'Recyclable',
-          eco_impact: data.eco_impact || '+0.50 kg CO2 avoided',
-          created_at: new Date().toISOString()
+    if (backendUrl) {
+      try {
+        const res = await fetch(`${backendUrl}/api/ai/waste/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: uploadedImage,
+            filename: selectedFileName,
+            userId: user?.id,
+            userName: user?.fullName
+          }),
+          signal: AbortSignal.timeout(3000)
         });
-        if (data.suitable_facilities && data.suitable_facilities.length > 0) {
-          setSelectedFacility(data.suitable_facilities[0]);
+
+        if (res.ok) {
+          const data = await res.json();
+          setResult(data);
+          saveStoredWasteScan({
+            analysis_id: data.analysis_id || 'AI-' + Date.now().toString().slice(-6),
+            image: uploadedImage,
+            predicted_class: data.prediction || data.detected_class || 'food_waste',
+            display_name: data.display_name || data.detected_item || 'Waste Item',
+            confidence: data.confidence || 0.9,
+            confidence_pct: data.confidence_pct || '90%',
+            waste_group: data.waste_group || 'Non-Biodegradable',
+            recommended_action: data.recommended_action || 'Process at approved center',
+            processing_route: data.processing_route || data.suggested_processing || 'Recyclable',
+            eco_impact: data.eco_impact || '+0.50 kg CO2 avoided',
+            created_at: new Date().toISOString()
+          });
+          if (data.suitable_facilities && data.suitable_facilities.length > 0) {
+            setSelectedFacility(data.suitable_facilities[0]);
+          }
+          loadStatsAndHistory();
+          setIsAnalyzing(false);
+          return;
         }
-        loadStatsAndHistory();
-      } else {
-        throw new Error('Server returned non-ok');
+      } catch (err) {
+        // Fall through to on-device analysis
       }
-    } catch (err: any) {
+    }
       // Offline fallback: Analyze directly on-device
       try {
         const clientData = await ClientAiEngine.analyze(uploadedImage, {

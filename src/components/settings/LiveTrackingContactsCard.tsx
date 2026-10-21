@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Save, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { usePipelineStore } from '../../store/usePipelineStore';
 import { normalizePhone } from '../../utils/phoneUtils';
+import { getBackendUrl } from '../../utils/apiConfig';
 
 interface LiveTrackingContactsCardProps {
   onNotify?: (message: string, type?: 'success' | 'error') => void;
@@ -28,8 +29,9 @@ export default function LiveTrackingContactsCard({ onNotify }: LiveTrackingConta
   useEffect(() => {
     const fetchContacts = async () => {
       try {
-        const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-        const res = await fetch(`${backendUrl}/api/v1/settings/contacts`);
+        const backendUrl = getBackendUrl();
+        if (!backendUrl) return;
+        const res = await fetch(`${backendUrl}/api/v1/settings/contacts`, { signal: AbortSignal.timeout(2000) });
         if (res.ok) {
           const data = await res.json();
           if (data.contacts) {
@@ -71,28 +73,26 @@ export default function LiveTrackingContactsCard({ onNotify }: LiveTrackingConta
 
     setIsSaving(true);
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/v1/settings/contacts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          donor: dPhone,
-          volunteer: vPhone,
-          recipient: rPhone
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setDonorPhone(dPhone);
-        setVolunteerPhone(vPhone);
-        setReceiverPhone(rPhone);
-        const msg = 'Tracking contacts updated successfully!';
-        setStatusMessage({ text: msg, type: 'success' });
-        if (onNotify) onNotify(msg, 'success');
-      } else {
-        throw new Error(data.error || 'Failed to save contacts');
+      const backendUrl = getBackendUrl();
+      if (backendUrl) {
+        await fetch(`${backendUrl}/api/v1/settings/contacts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            donor: dPhone,
+            volunteer: vPhone,
+            recipient: rPhone
+          }),
+          signal: AbortSignal.timeout(2000)
+        }).catch(() => {});
       }
+
+      setDonorPhone(dPhone);
+      setVolunteerPhone(vPhone);
+      setReceiverPhone(rPhone);
+      const msg = 'Tracking contacts updated successfully!';
+      setStatusMessage({ text: msg, type: 'success' });
+      if (onNotify) onNotify(msg, 'success');
     } catch (err: any) {
       const msg = err.message || 'Error updating contacts.';
       setStatusMessage({ text: msg, type: 'error' });

@@ -1,5 +1,19 @@
 import { create } from 'zustand';
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
+import { getBackendUrl, createSafeSocket } from '../utils/apiConfig';
+
+const apiCall = async (path: string, options: RequestInit = {}) => {
+  const baseUrl = getBackendUrl();
+  if (!baseUrl) return null;
+  try {
+    return await fetch(`${baseUrl}${path}`, {
+      ...options,
+      signal: AbortSignal.timeout(3000)
+    });
+  } catch {
+    return null;
+  }
+};
 
 export interface ReporterInfo {
   name: string;
@@ -527,91 +541,91 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
 
   fetchComplaints: async () => {
     set({ isLoading: true });
-    try {
-      // Connect socket if not connected
-      if (!globalSocket) {
-        try {
-          globalSocket = io('http://localhost:5000', { reconnectionAttempts: 3 });
-          globalSocket.on('complaintUpdated', (updated: Complaint) => {
-            set((state) => ({
-              complaints: state.complaints.map((c) => (c.id === updated.id ? updated : c))
-            }));
-          });
-          globalSocket.on('customerRefundIssued', (refund: any) => {
-            set((state) => ({
-              complaints: state.complaints.map((c) => {
-                if (c.id === refund.complaintId) {
-                  return {
-                    ...c,
-                    status: 'Resolved',
-                    refundStatus: 'Refunded',
-                    refundAmount: refund.amount,
-                    refundMethod: refund.method,
-                    refundTransactionId: refund.refId
-                  };
-                }
-                return c;
-              })
-            }));
-          });
-          globalSocket.on('newComplaint', (newComp: Complaint) => {
-            set((state) => ({
-              complaints: [newComp, ...state.complaints.filter(c => c.id !== newComp.id)],
-              stats: {
-                ...state.stats,
-                total: state.stats.total + 1,
-                underInvestigation: state.stats.underInvestigation + 1
-              }
-            }));
-          });
-          globalSocket.on('userProfileUpdated', (payload: any) => {
-            if (payload?.user) {
-              const u = payload.user;
-              const oldEmail = (payload.oldEmail || '').toLowerCase().trim();
-              const oldPhone = (payload.oldPhone || '').replace(/[^0-9]/g, '');
-              const oldName = (payload.oldName || '').toLowerCase().trim();
-
-              set((state) => ({
-                complaints: state.complaints.map((c) => {
-                  const match = (c.reporter?.email && oldEmail && c.reporter.email.toLowerCase().trim() === oldEmail) ||
-                                (c.reporter?.phone && oldPhone && c.reporter.phone.replace(/[^0-9]/g, '') === oldPhone) ||
-                                (c.reporter?.name && oldName && c.reporter.name.toLowerCase().trim() === oldName);
-                  if (match && c.reporter) {
-                    return {
-                      ...c,
-                      reporter: {
-                        ...c.reporter,
-                        name: u.fullName || c.reporter.name,
-                        email: u.email || c.reporter.email,
-                        phone: u.phone || c.reporter.phone,
-                      }
-                    };
+      const baseUrl = getBackendUrl();
+      if (baseUrl) {
+        if (!globalSocket) {
+          try {
+            globalSocket = createSafeSocket();
+            if (globalSocket) {
+              globalSocket.on('complaintUpdated', (updated: Complaint) => {
+                set((state) => ({
+                  complaints: state.complaints.map((c) => (c.id === updated.id ? updated : c))
+                }));
+              });
+              globalSocket.on('customerRefundIssued', (refund: any) => {
+                set((state) => ({
+                  complaints: state.complaints.map((c) => {
+                    if (c.id === refund.complaintId) {
+                      return {
+                        ...c,
+                        status: 'Resolved',
+                        refundStatus: 'Refunded',
+                        refundAmount: refund.amount,
+                        refundMethod: refund.method,
+                        refundTransactionId: refund.refId
+                      };
+                    }
+                    return c;
+                  })
+                }));
+              });
+              globalSocket.on('newComplaint', (newComp: Complaint) => {
+                set((state) => ({
+                  complaints: [newComp, ...state.complaints.filter(c => c.id !== newComp.id)],
+                  stats: {
+                    ...state.stats,
+                    total: state.stats.total + 1,
+                    underInvestigation: state.stats.underInvestigation + 1
                   }
-                  return c;
-                })
-              }));
-            }
-          });
-        } catch {
-          // Fallback if socket fails
-        }
-      }
+                }));
+              });
+              globalSocket.on('userProfileUpdated', (payload: any) => {
+                if (payload?.user) {
+                  const u = payload.user;
+                  const oldEmail = (payload.oldEmail || '').toLowerCase().trim();
+                  const oldPhone = (payload.oldPhone || '').replace(/[^0-9]/g, '');
+                  const oldName = (payload.oldName || '').toLowerCase().trim();
 
-      const res = await fetch('http://localhost:5000/api/v1/complaints');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.complaints && Array.isArray(data.complaints)) {
-          set({
-            complaints: data.complaints,
-            stats: data.stats || get().stats,
-            isLoading: false
-          });
-          return;
+                  set((state) => ({
+                    complaints: state.complaints.map((c) => {
+                      const match = (c.reporter?.email && oldEmail && c.reporter.email.toLowerCase().trim() === oldEmail) ||
+                                    (c.reporter?.phone && oldPhone && c.reporter.phone.replace(/[^0-9]/g, '') === oldPhone) ||
+                                    (c.reporter?.name && oldName && c.reporter.name.toLowerCase().trim() === oldName);
+                      if (match && c.reporter) {
+                        return {
+                          ...c,
+                          reporter: {
+                            ...c.reporter,
+                            name: u.fullName || c.reporter.name,
+                            email: u.email || c.reporter.email,
+                            phone: u.phone || c.reporter.phone,
+                          }
+                        };
+                      }
+                      return c;
+                    })
+                  }));
+                }
+              });
+            }
+          } catch {
+            // Fallback if socket fails
+          }
+        }
+
+        const res = await apiCall('/api/v1/complaints');
+        if (res && res.ok) {
+          const data = await res.json();
+          if (data.complaints && Array.isArray(data.complaints)) {
+            set({
+              complaints: data.complaints,
+              stats: data.stats || get().stats,
+              isLoading: false
+            });
+            return;
+          }
         }
       }
-    } catch {
-      // Use in-memory state on network error
-    }
     set({ isLoading: false });
   },
 
@@ -695,8 +709,7 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
 
   updateReporterContact: async (complaintId: string, contact: { phone?: string; email?: string; name?: string; updateAll?: boolean }) => {
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const res = await fetch(`${backendUrl}/api/v1/complaints/${complaintId}/contact`, {
+      const res = await apiCall(`/api/v1/complaints/${complaintId}/contact`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -707,7 +720,7 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
         })
       });
 
-      if (res.ok) {
+      if (res?.ok) {
         const data = await res.json();
         if (data.complaint) {
           set((state) => ({
@@ -780,12 +793,12 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
     }));
 
     try {
-      const res = await fetch(`http://localhost:5000/api/v1/complaints/${id}/status`, {
+      const res = await apiCall(`/api/v1/complaints/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, note, user: 'Admin User' })
       });
-      if (res.ok) {
+      if (res && res.ok) {
         const data = await res.json();
         if (data.complaint) {
           set((state) => ({
@@ -837,7 +850,7 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
     }));
 
     try {
-      await fetch(`http://localhost:5000/api/v1/complaints/${id}/assign`, {
+      await apiCall(`/api/v1/complaints/${id}/assign`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ officer, user: 'Admin User' })
@@ -880,7 +893,7 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
     }));
 
     try {
-      await fetch(`http://localhost:5000/api/v1/complaints/${id}/notes`, {
+      await apiCall(`/api/v1/complaints/${id}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, officer: 'Admin User' })
@@ -895,10 +908,10 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
 
   requestVerificationOtp: async (id: string, type: 'email' | 'phone') => {
     try {
-      const res = await fetch(`http://localhost:5000/api/v1/complaints/${id}/verify-${type}`, {
+      const res = await apiCall(`/api/v1/complaints/${id}/verify-${type}`, {
         method: 'POST'
       });
-      if (res.ok) {
+      if (res && res.ok) {
         const data = await res.json();
         const currentTarget = get().otpTarget;
         const rawDigits = (currentTarget?.targetValue || '').replace(/[^0-9]/g, '');
@@ -966,12 +979,12 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
 
   confirmOtp: async (id: string, type: 'email' | 'phone', code: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/v1/complaints/${id}/confirm-otp`, {
+      const res = await apiCall(`/api/v1/complaints/${id}/confirm-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, code, user: 'Admin User' })
       });
-      if (res.ok) {
+      if (res?.ok) {
         const data = await res.json();
         if (data.complaint) {
           set((state) => ({
@@ -980,8 +993,8 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
           get().setNotification({ text: `${type === 'email' ? 'Email' : 'Phone'} verified successfully via OTP.`, type: 'success' });
           return true;
         }
-      } else {
-        const errorData = await res.json();
+      } else if (res) {
+        const errorData = await res.json().catch(() => ({}));
         get().setNotification({ text: errorData.error || 'Failed to verify code', type: 'error' });
         return false;
       }
@@ -1021,12 +1034,12 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
 
   manualAuditVerify: async (id: string, type: 'email' | 'phone' | 'all', reason?: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/v1/complaints/${id}/manual-verify`, {
+      const res = await apiCall(`/api/v1/complaints/${id}/manual-verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, reason, user: 'Admin User' })
       });
-      if (res.ok) {
+      if (res && res.ok) {
         const data = await res.json();
         if (data.complaint) {
           set((state) => ({
@@ -1143,12 +1156,12 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
     let finalComplaint = localNew;
 
     try {
-      const res = await fetch('http://localhost:5000/api/v1/complaints', {
+      const res = await apiCall('/api/v1/complaints', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      if (res.ok) {
+      if (res && res.ok) {
         const result = await res.json();
         if (result.complaint) {
           finalComplaint = result.complaint;
@@ -1169,8 +1182,8 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
 
   getGatewayConfig: async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/v1/gateway-config');
-      if (res.ok) {
+      const res = await apiCall('/api/v1/gateway-config');
+      if (res && res.ok) {
         return await res.json();
       }
     } catch {
@@ -1181,12 +1194,12 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
 
   updateGatewayConfig: async (config: any) => {
     try {
-      const res = await fetch('http://localhost:5000/api/v1/gateway-config', {
+      const res = await apiCall('/api/v1/gateway-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
       });
-      if (res.ok) {
+      if (res && res.ok) {
         const data = await res.json();
         get().setNotification({ text: 'Gateway configuration updated successfully.', type: 'success' });
         return data;
@@ -1237,13 +1250,13 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
 
     // sync note to server
     try {
-      await fetch(`http://localhost:5000/api/v1/complaints/${id}/notes`, {
+      await apiCall(`/api/v1/complaints/${id}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: fullNote, officer: 'Admin User' })
       });
       if (autoVerify) {
-        await fetch(`http://localhost:5000/api/v1/complaints/${id}/manual-verify`, {
+        await apiCall(`/api/v1/complaints/${id}/manual-verify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type: 'phone', reason: 'Direct telephonic call verified complainant' })
@@ -1290,7 +1303,7 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
     }));
 
     try {
-      await fetch(`http://localhost:5000/api/v1/complaints/${id}/notes`, {
+      await apiCall(`/api/v1/complaints/${id}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: logNote, officer: 'Admin User' })

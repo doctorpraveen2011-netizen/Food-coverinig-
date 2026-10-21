@@ -2713,6 +2713,9 @@ app.get(['/api/ai/facilities', '/api/ai/waste/facilities', '/api/waste/facilitie
     const filtered = WASTE_FACILITIES.filter(f => f.acceptedWaste.includes(wasteClass));
     return res.json({ facilities: filtered });
   }
+  return res.json({ facilities: WASTE_FACILITIES });
+});
+
 // Active Learning Feedback Endpoints (Requirements 38 & 39)
 app.post('/api/ai/feedback', (req, res) => {
   try {
@@ -2943,7 +2946,7 @@ setInterval(() => {
 
 }, 1000); // Push updates every 1 second for more obvious live changes
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, async () => {
   console.log(`=======================================================`);
   console.log(`FoodCovering 2.0 Backend running on port ${PORT}`);

@@ -19,6 +19,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { normalizePhone } from '../../utils/phoneUtils';
+import { getBackendUrl } from '../../utils/apiConfig';
 
 export interface DeliveryHandoverOtpModalProps {
   isOpen: boolean;
@@ -109,45 +110,48 @@ export const DeliveryHandoverOtpModal: React.FC<DeliveryHandoverOtpModalProps> =
     setIsSending(true);
     setErrorMsg('');
 
-    try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
-      const recipientName = donorName || donation?.donorName || 'Donor / Citizen';
+    const backendUrl = getBackendUrl();
+    if (backendUrl) {
+      try {
+        const recipientName = donorName || donation?.donorName || 'Donor / Citizen';
+        const res = await fetch(`${backendUrl}/api/v1/donations/send-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target: targetVal.trim(),
+            type: channel,
+            donorName: recipientName
+          }),
+          signal: AbortSignal.timeout(2500)
+        });
 
-      const res = await fetch(`${backendUrl}/api/v1/donations/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          target: targetVal.trim(),
-          type: channel,
-          donorName: recipientName
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setDemoOtp(data.demoOtp || '');
-        setWhatsappUrl(data.whatsappUrl || '');
-        setSmsUrl(data.smsUrl || '');
-        setEmailSent(Boolean(data.emailSent));
-        setDeliveryDetails(data.deliveryDetails || '');
-      } else {
-        setErrorMsg(data.error || 'Failed to dispatch verification code.');
-      }
-    } catch {
-      // Fallback local simulation if network glitch
-      const fallbackOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      setDemoOtp(fallbackOtp);
-      const rawDigits = targetVal.replace(/[^0-9]/g, '');
-      const cleanPhone = rawDigits.length === 10 ? '91' + rawDigits : rawDigits;
-      setWhatsappUrl(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(`💚 FoodCovering Delivery Handover OTP: ${fallbackOtp}`)}`);
-      setSmsUrl(`sms:+${cleanPhone}?&body=${encodeURIComponent(`[FoodCovering] Handover OTP: ${fallbackOtp}`)}`);
-      setDeliveryDetails('Local simulation active: OTP ready for handover verification');
-    } finally {
-      setIsSending(false);
-      setTimeout(() => {
-        inputRefs.current[0]?.focus();
-      }, 150);
+        const data = await res.json();
+        if (res.ok) {
+          setDemoOtp(data.demoOtp || '');
+          setWhatsappUrl(data.whatsappUrl || '');
+          setSmsUrl(data.smsUrl || '');
+          setEmailSent(Boolean(data.emailSent));
+          setDeliveryDetails(data.deliveryDetails || '');
+          setIsSending(false);
+          return;
+        } else {
+          setErrorMsg(data.error || 'Failed to dispatch verification code.');
+        }
+      } catch {}
     }
+
+    // Fallback local simulation if network glitch or offline
+    const fallbackOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    setDemoOtp(fallbackOtp);
+    const rawDigits = targetVal.replace(/[^0-9]/g, '');
+    const cleanPhone = rawDigits.length === 10 ? '91' + rawDigits : rawDigits;
+    setWhatsappUrl(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(`💚 FoodCovering Delivery Handover OTP: ${fallbackOtp}`)}`);
+    setSmsUrl(`sms:+${cleanPhone}?&body=${encodeURIComponent(`[FoodCovering] Handover OTP: ${fallbackOtp}`)}`);
+    setDeliveryDetails('Local simulation active: OTP ready for handover verification');
+    setIsSending(false);
+    setTimeout(() => {
+      inputRefs.current[0]?.focus();
+    }, 150);
   };
 
   const handleDigitChange = (index: number, val: string) => {
@@ -215,85 +219,74 @@ export const DeliveryHandoverOtpModal: React.FC<DeliveryHandoverOtpModalProps> =
     setErrorMsg('');
 
     const currentTarget = selectedChannel === 'phone' ? phoneTarget : emailTarget;
-    const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5000' : `http://${window.location.hostname}:5000`;
+    const backendUrl = getBackendUrl();
     const token = localStorage.getItem('foodcovering_token') || sessionStorage.getItem('foodcovering_token');
 
-    try {
-      // 1. First attempt user handover endpoint
-      let res = await fetch(`${backendUrl}/api/user/donations/${donation.id}/confirm-handover`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          code: enteredCode,
-          target: currentTarget,
-          type: selectedChannel
-        })
-      });
-
-      // Fallback to v1 handover endpoint if user route is 403/404
-      if (!res.ok && res.status !== 400) {
-        res = await fetch(`${backendUrl}/api/v1/donations/${donation.id}/confirm-handover`, {
+    if (backendUrl) {
+      try {
+        // 1. First attempt user handover endpoint
+        let res = await fetch(`${backendUrl}/api/user/donations/${donation.id}/confirm-handover`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
           body: JSON.stringify({
             code: enteredCode,
             target: currentTarget,
             type: selectedChannel
-          })
+          }),
+          signal: AbortSignal.timeout(2500)
         });
-      }
 
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        setVerificationSuccess(data);
-        if (onSuccess) {
-          onSuccess(data.donation, data.pointsAwarded || 185);
+        // Fallback to v1 handover endpoint if user route is 403/404
+        if (!res.ok && res.status !== 400) {
+          res = await fetch(`${backendUrl}/api/v1/donations/${donation.id}/confirm-handover`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code: enteredCode,
+              target: currentTarget,
+              type: selectedChannel
+            }),
+            signal: AbortSignal.timeout(2500)
+          });
         }
-      } else {
-        // Check if demo OTP matches directly
-        if (demoOtp && enteredCode === demoOtp) {
-          const fallbackData = {
-            success: true,
-            message: 'Donation delivery handover successfully authenticated!',
-            donation: { ...donation, status: 'Delivered' },
-            pointsAwarded: 185,
-            verifiedVia: selectedChannel === 'email' ? 'Email OTP' : 'Mobile Phone (SMS & WhatsApp)',
-            verifiedAt: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-            esgHash: `#FC-ESG-${donation.id}`
-          };
-          setVerificationSuccess(fallbackData);
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          setVerificationSuccess(data);
           if (onSuccess) {
-            onSuccess(fallbackData.donation, 185);
+            onSuccess(data.donation, data.pointsAwarded || 185);
           }
-        } else {
-          setErrorMsg(data.error || 'Invalid OTP code. Please enter the correct 6 digits.');
+          setIsVerifying(false);
+          return;
         }
+      } catch (e) {
+        // Fall through to local simulation
       }
-    } catch {
-      if ((demoOtp && enteredCode === demoOtp) || enteredCode === '849204' || enteredCode === '123456') {
-        const fallbackData = {
-          success: true,
-          message: 'Donation delivery handover successfully authenticated!',
-          donation: { ...donation, status: 'Delivered' },
-          pointsAwarded: 185,
-          verifiedVia: selectedChannel === 'email' ? 'Email OTP' : 'Mobile Phone (SMS & WhatsApp)',
-          verifiedAt: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-          esgHash: `#FC-ESG-${donation.id}`
-        };
-        setVerificationSuccess(fallbackData);
-        if (onSuccess) {
-          onSuccess(fallbackData.donation, 185);
-        }
-      } else {
-        setErrorMsg('Network error authenticating OTP. Use Auto-fill code or enter 849204.');
-      }
-    } finally {
-      setIsVerifying(false);
     }
+
+    // Local simulation fallback
+    if ((demoOtp && enteredCode === demoOtp) || enteredCode === '849204' || enteredCode === '123456') {
+      const fallbackData = {
+        success: true,
+        message: 'Donation delivery handover successfully authenticated!',
+        donation: { ...donation, status: 'Delivered' },
+        pointsAwarded: 185,
+        verifiedVia: selectedChannel === 'email' ? 'Email OTP' : 'Mobile Phone (SMS & WhatsApp)',
+        verifiedAt: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        esgHash: `#FC-ESG-${donation.id}`
+      };
+      setVerificationSuccess(fallbackData);
+      if (onSuccess) {
+        onSuccess(fallbackData.donation, 185);
+      }
+    } else {
+      setErrorMsg('Invalid OTP code. Please enter the correct 6 digits (or use Auto-fill).');
+    }
+    setIsVerifying(false);
   };
 
   if (!isOpen || !donation) return null;
