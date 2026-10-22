@@ -38,6 +38,114 @@ export interface TranslatedScanPayload {
 
 // Translations for all 8 Dataset Waste Classes & 6 Freshness Classes
 const CLASS_TRANSLATIONS: Record<string, Record<SupportedLanguage, TranslatedScanPayload>> = {
+  // Prepared Fast Food & Junk Food (Burgers, French Fries, Fried Chicken, Snacks)
+  fast_food_junk_food: {
+    en: {
+      displayName: 'Prepared Fast Food & Junk Food (Burgers, Fries, Fried Snacks)',
+      category: 'Prepared Fast Food Organic',
+      freshness: 'Freshly Prepared Meal / Edible Leftovers',
+      risk: 'Low',
+      wasteGroup: 'Biodegradable',
+      processingType: 'Surplus Redistribution / Industrial Aerobic Composting',
+      recommendation: '100% Organic cooked biomass. If freshly prepared and wholesome, consume or donate surplus to relief shelters. Discarded scraps go to organic composting.',
+      shelfLife: '1 - 2 Days',
+      ecoImpact: '+0.82 kg CO2 avoided by preventing landfill methane',
+      forensicNote: 'Deep learning verified carbohydrate golden fry crust and cooked organic protein structures.',
+      badgeGrade: 'BIODEGRADABLE ORGANIC FOOD'
+    },
+    ta: {
+      displayName: 'துரித உணவு & வறுத்த தின்பண்டங்கள் (பர்கர், பிரெஞ்ச் பிரைஸ்)',
+      category: 'தயாரிக்கப்பட்ட துரித உணவு / இயற்கை கழிவு',
+      freshness: 'புதிதாக தயாரிக்கப்பட்ட உணவு / உண்ணக்கூடியது',
+      risk: 'குறைவு',
+      wasteGroup: 'மக்கும் தன்மை கொண்டது',
+      processingType: 'உணவு பகிர்வு / இயற்கை உரம் தயாரித்தல்',
+      recommendation: '100% மக்கும் இயற்கை உணவு. உண்ணக்கூடிய நல்ல நிலையில் இருந்தால் ஏழை எளியோருக்கு தானம் செய்யவும். மீதமுள்ளவற்றை இயற்கை உரத் தொட்டியில் போடவும்.',
+      shelfLife: '1 - 2 நாட்கள்',
+      ecoImpact: '+0.82 கிலோ CO2 வெளியேற்றம் சேமிக்கப்பட்டது',
+      forensicNote: 'வறுத்த உருளைக்கிழங்கு, ரொட்டி மற்றும் சமைக்கப்பட்ட புரத அமைப்புகள் துல்லியமாக கண்டறியப்பட்டன.',
+      badgeGrade: 'மக்கும் உணவுக் கழிவு'
+    },
+    hi: {
+      displayName: 'तैयार फास्ट फूड और स्नैक्स (बर्गर, फ्रेंच फ्राइज)',
+      category: 'फास्ट फूड / जैविक भोजन',
+      freshness: 'ताज़ा तैयार भोजन / खाने योग्य',
+      risk: 'कम',
+      wasteGroup: 'बायोडिग्रेडेबल',
+      processingType: 'अधिशेष भोजन दान / जैविक खाद निर्माण',
+      recommendation: '100% बायोडिग्रेडेबल जैविक भोजन। यदि ताज़ा और स्वच्छ है तो जरूरतमंदों को दान करें। बचा हुआ खाना गीले कचरे (खाद) में डालें।',
+      shelfLife: '1 - 2 दिन',
+      ecoImpact: '+0.82 किग्रा CO2 उत्सर्जन रोका गया',
+      forensicNote: 'कार्बोहाइड्रेट, तली हुई सामग्री और पके हुए प्रोटीन संरचनाओं की पुष्टि हुई।',
+      badgeGrade: 'बायोडिग्रेडेबल जैविक भोजन'
+    },
+    te: {
+      displayName: 'ఫాస్ట్ ఫుడ్ & స్నాక్స్ (బర్గర్, ఫ్రెంచ్ ఫ్రైస్)',
+      category: 'ఫాస్ట్ ఫుడ్ / సేంద్రీయ ఆహారం',
+      freshness: 'తాజా ఆహారం / తినదగినది',
+      risk: 'తక్కువ',
+      wasteGroup: 'బయోడిగ్రేడబుల్',
+      processingType: 'ఆహార విరాళం / సేంద్రీయ కంపోస్టింగ్',
+      recommendation: '100% బయోడిగ్రేడబుల్ సేంద్రీయ ఆహారం. తాజాగా ఉంటే అవసరమైన వారికి దానం చేయండి. వ్యర్థాలను సేంద్రీయ బుట్టలో వేయండి.',
+      shelfLife: '1 - 2 రోజులు',
+      ecoImpact: '+0.82 కిలోల CO2 ఆదా చేయబడింది',
+      forensicNote: 'వేయించిన బంగాళాదుంపలు మరియు ఆహార పదార్థాల స్పెక్ట్రమ్ నిర్ధారించబడింది.',
+      badgeGrade: 'బయోడిగ్రేడబుల్ సేంద్రీయ ఆహారం'
+    },
+    kn: {
+      displayName: 'ಸಿದ್ಧಪಡಿಸಿದ ಫಾಸ್ಟ್ ಫುಡ್ ಮತ್ತು ತಿಂಡಿಗಳು (ಬರ್ಗರ್, ಫ್ರೆಂಚ್ ಫ್ರೈಸ್)',
+      category: 'ಫಾಸ್ಟ್ ಫುಡ್ / ಸಾವಯವ ಆಹಾರ',
+      freshness: 'ತಾಜಾ ಸಿದ್ಧಪಡಿಸಿದ ಆಹಾರ / ತಿನ್ನಲು ಯೋಗ್ಯ',
+      risk: 'ಕಡಿಮೆ',
+      wasteGroup: 'ಜೈವಿಕ ವಿಘಟನೀಯ',
+      processingType: 'ಆಹಾರ ದಾನ / ಸಾವಯವ ಗೊಬ್ಬರ ತಯಾರಿಕೆ',
+      recommendation: '100% ಜೈವಿಕ ವಿಘಟನೀಯ ಸಾವಯವ ಆಹಾರ. ತಾಜಾವಾಗಿದ್ದರೆ ದಾನ ಮಾಡಿ. ಉಳಿದದ್ದನ್ನು ಸಾವಯವ ಕಸದ ಬುಟ್ಟಿಗೆ ಹಾಕಿ.',
+      shelfLife: '1 - 2 ದಿನಗಳು',
+      ecoImpact: '+0.82 ಕೆಜಿ ಇಂಗಾಲದ ಹೊರಸೂಸುವಿಕೆ ಉಳಿಸಲಾಗಿದೆ',
+      forensicNote: 'ಹುರಿದ ತಿನಿಸುಗಳು ಮತ್ತು ಬೇಯಿಸಿದ ಆಹಾರ ಪದಾರ್ಥಗಳ ಗುಣಲಕ್ಷಣಗಳು ಪತ್ತೆಯಾಗಿವೆ.',
+      badgeGrade: 'ಜೈವಿಕ ವಿಘಟನೀಯ ಆಹಾರ'
+    },
+    ml: {
+      displayName: 'ഫാസ്റ്റ് ഫുഡ് & പലഹാരങ്ങൾ (ബർഗർ, ഫ്രഞ്ച് ഫ്രൈസ്)',
+      category: 'ഫാസ്റ്റ് ഫുഡ് / ജൈവ ഭക്ഷണം',
+      freshness: 'പുതിയ ഭക്ഷണം / കഴിക്കാൻ യോഗ്യം',
+      risk: 'കുറഞ്ഞത്',
+      wasteGroup: 'ബയോഡീഗ്രേഡബിൾ',
+      processingType: 'ഭക്ഷണ ദാനം / കമ്പോസ്റ്റിംഗ്',
+      recommendation: '100% ബയോഡീഗ്രേഡബിൾ ജൈവ ഭക്ഷണം. നല്ല നിലയിലാണെങ്കിൽ ദാനം ചെയ്യുക, ബാക്കിയുള്ളവ ജൈവ മാലിന്യത്തിൽ നിക്ഷേപിക്കുക.',
+      shelfLife: '1 - 2 ദിവസങ്ങൾ',
+      ecoImpact: '+0.82 കിലോഗ്രാം കാർബൺ ഉദ്‌വമനം കുറച്ചു',
+      forensicNote: 'ഫ്രൈ ചെയ്ത ഭക്ഷണത്തിന്റെയും പാകം ചെയ്ത പ്രോട്ടീനുകളുടെയും സാന്നിധ്യം സ്ഥിരീകരിച്ചു.',
+      badgeGrade: 'ബയോഡീഗ്രേഡബിൾ ഓർഗാനിക്'
+    },
+    es: {
+      displayName: 'Comida Rápida y Frituras (Hamburguesas, Papas Fritas)',
+      category: 'Comida Rápida / Orgánico',
+      freshness: 'Comida Recién Preparada / Comestible',
+      risk: 'Bajo',
+      wasteGroup: 'Biodegradable',
+      processingType: 'Donación de Alimentos / Compostaje Orgánico',
+      recommendation: '100% biomasa orgánica cocinada. Si está en buen estado, donar a comedores sociales. Descartar restos en contenedor orgánico.',
+      shelfLife: '1 - 2 Días',
+      ecoImpact: '+0.82 kg CO2 evitado vía compostaje',
+      forensicNote: 'Estructura celular de carbohidratos fritos y proteínas cocidas detectada.',
+      badgeGrade: 'ALIMENTO ORGÁNICO BIODEGRADABLE'
+    },
+    fr: {
+      displayName: 'Restauration Rapide & Fritures (Burgers, Frites)',
+      category: 'Fast Food / Organique',
+      freshness: 'Plat Fraîchement Préparé / Comestible',
+      risk: 'Faible',
+      wasteGroup: 'Biodégradable',
+      processingType: 'Don Alimentaire / Compostage Organique',
+      recommendation: 'Biomasse cuite 100% organique. Si sain, redistribuer aux banques alimentaires. Déposer les restes au bac à compost.',
+      shelfLife: '1 - 2 Jours',
+      ecoImpact: '+0.82 kg de CO2 évité via compostage',
+      forensicNote: 'Structures de glucides dorés et protéines cuites confirmées par vision neuronale.',
+      badgeGrade: 'ALIMENT BIODÉGRADABLE'
+    }
+  },
+
   // 1. Organic Food Waste
   food_waste: {
     en: {

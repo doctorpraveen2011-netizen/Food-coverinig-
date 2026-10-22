@@ -165,6 +165,18 @@ export interface TaxonomyCategory {
 
 export const WASTE_TAXONOMY: Record<string, TaxonomyCategory> = {
   // BIODEGRADABLE
+  fast_food_junk_food: {
+    id: 'fast_food_junk_food',
+    name: 'Prepared Fast Food & Junk Food (Burgers, Fries, Fried Snacks)',
+    group: 'Biodegradable',
+    subgroup: 'Prepared Fast Food Organic',
+    recyclable: true,
+    color: '#f59e0b', // amber-500
+    icon: '🍔',
+    processing: 'Industrial Aerobic Composting & Anaerobic Biogas Digestion',
+    recommendation: 'Prepared food is 100% organic biomass. If fresh and edible, consume or donate surplus to relief shelters. If discarded scrap, deposit into organic composting bin separate from plastic wrapping.',
+    ecoImpact: 'Diverts calorie-rich cooked organics from landfills, generating rich bio-methane energy and agricultural compost.'
+  },
   organic_food_waste: {
     id: 'organic_food_waste',
     name: 'Organic Cooked Food Scraps & Leftovers',
@@ -485,24 +497,39 @@ const IMAGENET_WASTE_MAP: Record<string, { category: string; confidenceBoost: nu
   'butternut squash': { category: 'citrus_fruit_waste', confidenceBoost: 0.90, isFood: true },
 
   // Cooked / Prepared Food Scraps & Bakery & Grains & Proteins (Biodegradable)
-  'pizza': { category: 'organic_food_waste', confidenceBoost: 0.95, isFood: true },
-  'potpie': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
-  'burrito': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
-  'cheeseburger': { category: 'organic_food_waste', confidenceBoost: 0.95, isFood: true },
-  'burger': { category: 'organic_food_waste', confidenceBoost: 0.95, isFood: true },
-  'hotdog': { category: 'organic_food_waste', confidenceBoost: 0.95, isFood: true },
-  'bagel': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
-  'pretzel': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
-  'sandwich': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  // Prepared Fast Food & Junk Food (Burgers, French Fries, Fried Chicken, Snacks) - 100% Biodegradable
+  'cheeseburger': { category: 'fast_food_junk_food', confidenceBoost: 0.98, isFood: true },
+  'burger': { category: 'fast_food_junk_food', confidenceBoost: 0.98, isFood: true },
+  'hamburger': { category: 'fast_food_junk_food', confidenceBoost: 0.98, isFood: true },
+  'french fries': { category: 'fast_food_junk_food', confidenceBoost: 0.98, isFood: true },
+  'french fry': { category: 'fast_food_junk_food', confidenceBoost: 0.98, isFood: true },
+  'fries': { category: 'fast_food_junk_food', confidenceBoost: 0.98, isFood: true },
+  'hotdog': { category: 'fast_food_junk_food', confidenceBoost: 0.96, isFood: true },
+  'hot dog': { category: 'fast_food_junk_food', confidenceBoost: 0.96, isFood: true },
+  'pizza': { category: 'fast_food_junk_food', confidenceBoost: 0.96, isFood: true },
+  'sandwich': { category: 'fast_food_junk_food', confidenceBoost: 0.95, isFood: true },
+  'burrito': { category: 'fast_food_junk_food', confidenceBoost: 0.95, isFood: true },
+  'potpie': { category: 'fast_food_junk_food', confidenceBoost: 0.92, isFood: true },
+  'bagel': { category: 'fast_food_junk_food', confidenceBoost: 0.92, isFood: true },
+  'pretzel': { category: 'fast_food_junk_food', confidenceBoost: 0.90, isFood: true },
+  'french loaf': { category: 'fast_food_junk_food', confidenceBoost: 0.92, isFood: true },
+  'fried chicken': { category: 'fast_food_junk_food', confidenceBoost: 0.96, isFood: true },
+  'chicken wing': { category: 'fast_food_junk_food', confidenceBoost: 0.95, isFood: true },
+  'drumstick': { category: 'fast_food_junk_food', confidenceBoost: 0.95, isFood: true },
+  'nugget': { category: 'fast_food_junk_food', confidenceBoost: 0.95, isFood: true },
+  'chicken nugget': { category: 'fast_food_junk_food', confidenceBoost: 0.96, isFood: true },
+  'taco': { category: 'fast_food_junk_food', confidenceBoost: 0.95, isFood: true },
+  'crisp': { category: 'fast_food_junk_food', confidenceBoost: 0.90, isFood: true },
+  'restaurant': { category: 'fast_food_junk_food', confidenceBoost: 0.85, isFood: true },
+
+  // Cooked / Prepared Food Scraps & Bakery & Grains & Proteins (Biodegradable)
   'meatloaf': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'spaghetti': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'pasta': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'carbonara': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'noodle': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'ramen': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
-  'french fries': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
   'bread': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
-  'french loaf': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
   'loaf': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'toast': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'croissant': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
@@ -576,21 +603,18 @@ const IMAGENET_WASTE_MAP: Record<string, { category: string; confidenceBoost: nu
   'clamshell': { category: 'rigid_plastic_containers', confidenceBoost: 0.92, isFood: false },
   'container': { category: 'rigid_plastic_containers', confidenceBoost: 0.88, isFood: false },
 
-  // NON-BIODEGRADABLE: Metals & Cans
+  // NON-BIODEGRADABLE: Metals & Cans (Specific compound matches only; no bare 'can' or 'tin' substrings)
   'beer can': { category: 'metal_cans_tins', confidenceBoost: 0.98, isFood: false },
   'soda can': { category: 'metal_cans_tins', confidenceBoost: 0.98, isFood: false },
   'pop can': { category: 'metal_cans_tins', confidenceBoost: 0.98, isFood: false },
   'tin can': { category: 'metal_cans_tins', confidenceBoost: 0.98, isFood: false },
-  'can': { category: 'metal_cans_tins', confidenceBoost: 0.95, isFood: false },
-  'tin': { category: 'metal_cans_tins', confidenceBoost: 0.95, isFood: false },
-  'aluminum': { category: 'metal_cans_tins', confidenceBoost: 0.96, isFood: false },
-  'aluminium': { category: 'metal_cans_tins', confidenceBoost: 0.96, isFood: false },
+  'beverage can': { category: 'metal_cans_tins', confidenceBoost: 0.98, isFood: false },
+  'aluminum can': { category: 'metal_cans_tins', confidenceBoost: 0.98, isFood: false },
+  'steel can': { category: 'metal_cans_tins', confidenceBoost: 0.98, isFood: false },
+  'metal can': { category: 'metal_cans_tins', confidenceBoost: 0.98, isFood: false },
   'aluminum foil': { category: 'metal_cans_tins', confidenceBoost: 0.98, isFood: false },
   'aluminium foil': { category: 'metal_cans_tins', confidenceBoost: 0.98, isFood: false },
-  'foil': { category: 'metal_cans_tins', confidenceBoost: 0.95, isFood: false },
-  'frying pan': { category: 'metal_cans_tins', confidenceBoost: 0.90, isFood: false },
-  'wok': { category: 'metal_cans_tins', confidenceBoost: 0.90, isFood: false },
-  'kettle': { category: 'metal_cans_tins', confidenceBoost: 0.90, isFood: false },
+  'tin foil': { category: 'metal_cans_tins', confidenceBoost: 0.98, isFood: false },
   'can opener': { category: 'metal_cans_tins', confidenceBoost: 0.92, isFood: false },
   'corkscrew': { category: 'metal_cans_tins', confidenceBoost: 0.90, isFood: false },
   'bottle cap': { category: 'metal_cans_tins', confidenceBoost: 0.92, isFood: false },
@@ -716,7 +740,13 @@ function matchImageNetClass(className: string): { category: string; confidenceBo
   // Sort keys by descending length so specific keys (e.g. 'water bottle') match before general ones ('bottle')
   const keys = Object.keys(IMAGENET_WASTE_MAP).sort((a, b) => b.length - a.length);
   for (const key of keys) {
-    if (lower.includes(key)) {
+    if (key.length <= 4) {
+      // Use word boundaries for short terms like 'cup', 'box', 'foil' to avoid matching 'cantaloupe', 'gratin', etc.
+      const regex = new RegExp(`\\b${key}\\b`, 'i');
+      if (regex.test(lower)) {
+        return IMAGENET_WASTE_MAP[key];
+      }
+    } else if (lower.includes(key)) {
       return IMAGENET_WASTE_MAP[key];
     }
   }
@@ -920,24 +950,25 @@ export class ClientAiEngine {
     if (options.filename) {
       const fn = options.filename.toLowerCase();
       const filenameKeywords: Array<{ keywords: string[]; category: string }> = [
-        { keywords: ['bottle', 'pet', 'water_bottle', 'plastic_bottle', 'flask'], category: 'plastic_bottles' },
-        { keywords: ['can', 'tin', 'aluminum', 'aluminium', 'soda_can', 'coke', 'beer_can', 'foil'], category: 'metal_cans_tins' },
-        { keywords: ['bag', 'wrapper', 'packet', 'pouch', 'plastic_bag', 'chip', 'snack', 'packaging'], category: 'plastic_bags_wrappers' },
-        { keywords: ['container', 'tub', 'bucket', 'clamshell', 'plastic_container', 'crate'], category: 'rigid_plastic_containers' },
-        { keywords: ['box', 'cardboard', 'carton', 'paper', 'envelope'], category: 'paper_cardboard_waste' },
-        { keywords: ['glass', 'jar', 'wine', 'beer_bottle'], category: 'glass_containers' },
-        { keywords: ['styrofoam', 'foam', 'thermacol', 'foam_cup'], category: 'styrofoam_foam' },
-        { keywords: ['ewaste', 'phone', 'cellphone', 'laptop', 'mouse', 'keyboard', 'cable', 'charger', 'electronic', 'monitor'], category: 'electronic_ewaste' },
-        { keywords: ['battery', 'chemical', 'bleach', 'spray', 'aerosol'], category: 'hazardous_chemical' },
-        { keywords: ['tetra', 'tetrapak', 'juice_box'], category: 'composite_packaging' },
-        { keywords: ['cloth', 'textile', 'fabric', 'shirt', 'sock', 'jean'], category: 'textiles_fabric_waste' },
-        { keywords: ['mask', 'syringe', 'bandage', 'diaper', 'medical'], category: 'medical_sanitary_waste' },
+        { keywords: ['burger', 'fries', 'french_fries', 'junk_food', 'junkfood', 'fast_food', 'fastfood', 'fry', 'nugget', 'pizza', 'hotdog', 'sandwich', 'fried_chicken', 'snack'], category: 'fast_food_junk_food' },
+        { keywords: ['plastic_bottle', 'water_bottle', 'pet_bottle', 'pop_bottle', 'soda_bottle', 'drink_bottle'], category: 'plastic_bottles' },
+        { keywords: ['beer_can', 'soda_can', 'tin_can', 'aluminum_can', 'beverage_can', 'coke_can', 'metal_can', 'aluminum_foil', 'tin_foil'], category: 'metal_cans_tins' },
+        { keywords: ['plastic_bag', 'carrier_bag', 'grocery_bag', 'garbage_bag', 'film_wrapper', 'polyethylene'], category: 'plastic_bags_wrappers' },
+        { keywords: ['plastic_container', 'plastic_tub', 'plastic_crate', 'takeout_box'], category: 'rigid_plastic_containers' },
+        { keywords: ['cardboard_box', 'cardboard', 'carton', 'paper_box', 'kraft_paper', 'envelope'], category: 'paper_cardboard_waste' },
+        { keywords: ['glass_bottle', 'wine_bottle', 'beer_bottle', 'glass_jar', 'mason_jar'], category: 'glass_containers' },
+        { keywords: ['styrofoam', 'thermacol', 'foam_cup', 'foam_box', 'eps_foam'], category: 'styrofoam_foam' },
+        { keywords: ['ewaste', 'cellphone', 'laptop', 'computer_mouse', 'keyboard', 'charger_cable', 'electronic'], category: 'electronic_ewaste' },
+        { keywords: ['battery', 'chemical_bottle', 'bleach', 'spray_can', 'aerosol'], category: 'hazardous_chemical' },
+        { keywords: ['tetra_pak', 'tetrapak', 'juice_box'], category: 'composite_packaging' },
+        { keywords: ['cloth', 'textile', 'fabric', 'shirt', 'sock', 'jean', 'denim'], category: 'textiles_fabric_waste' },
+        { keywords: ['surgical_mask', 'medical_mask', 'syringe', 'bandage', 'diaper'], category: 'medical_sanitary_waste' },
         { keywords: ['banana'], category: 'banana_waste' },
         { keywords: ['orange', 'citrus', 'lemon', 'lime', 'mango', 'papaya', 'carrot', 'pumpkin'], category: 'citrus_fruit_waste' },
         { keywords: ['apple', 'tomato', 'strawberry', 'grape', 'watermelon', 'berry', 'fruit'], category: 'apple_produce_waste' },
         { keywords: ['vegetable', 'greens', 'lettuce', 'cabbage', 'cucumber', 'spinach', 'broccoli', 'onion', 'garlic'], category: 'vegetable_peels_greens' },
-        { keywords: ['leaf', 'garden', 'yard', 'foliage', 'plant'], category: 'leaf_garden_waste' },
-        { keywords: ['food', 'cooked', 'leftover', 'meal', 'bread', 'pizza', 'rice', 'curry', 'pasta', 'noodle', 'burger', 'bakery', 'cake', 'chicken', 'egg', 'fish', 'meat', 'potato', 'soup'], category: 'organic_food_waste' }
+        { keywords: ['leaf', 'garden_waste', 'yard_waste', 'foliage', 'plant_scrap'], category: 'leaf_garden_waste' },
+        { keywords: ['food_waste', 'cooked_food', 'leftover', 'meal', 'bread', 'rice', 'curry', 'pasta', 'noodle', 'bakery', 'cake', 'chicken', 'egg', 'fish', 'meat', 'potato', 'soup'], category: 'organic_food_waste' }
       ];
 
       for (const item of filenameKeywords) {
@@ -1239,6 +1270,11 @@ export class ClientAiEngine {
       riskLevel = 'High';
       shelfLife = 'Expired';
       donationEligible = false;
+    } else if (primaryCategoryId === 'fast_food_junk_food') {
+      visualFreshness = 'Fresh';
+      riskLevel = 'Low';
+      shelfLife = '1 - 2 Days';
+      donationEligible = true;
     } else if (primaryCategoryId === 'organic_food_waste') {
       visualFreshness = 'Moderate';
       riskLevel = 'Medium';
@@ -1253,6 +1289,34 @@ export class ClientAiEngine {
 
     // Generate Grad-CAM attention heatmap from high-activation grid cells
     const gradcamImage = this.generateGradCamOverlay(canvas, ctx, width, height, gridCells);
+
+    // Polish detected food name with MobileNet predictions if available
+    let finalDetectedFood = primaryTaxonomy.name;
+    let finalDisplayName = primaryTaxonomy.name;
+
+    const topFoodPred = neuralPredictions.find((p) => {
+      const match = matchImageNetClass(p.className);
+      return match && match.isFood;
+    });
+
+    if (primaryCategoryId === 'fast_food_junk_food') {
+      if (topFoodPred) {
+        const cleanName = topFoodPred.className.split(',')[0].trim();
+        const capName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+        finalDetectedFood = `${capName} & French Fries (Fast Food)`;
+        finalDisplayName = `${capName} & French Fries (Junk Food)`;
+      } else {
+        finalDetectedFood = 'Burgers & French Fries (Fast Food)';
+        finalDisplayName = 'Prepared Fast Food & Junk Food (Burgers, Fries)';
+      }
+    } else if (primaryCategoryId === 'organic_food_waste') {
+      if (topFoodPred) {
+        const cleanName = topFoodPred.className.split(',')[0].trim();
+        const capName = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+        finalDetectedFood = capName;
+        finalDisplayName = `${capName} (Organic Food)`;
+      }
+    }
 
     // Build Top Predictions List
     const topPreds = sortedCategories.slice(0, 4).map(([catId]) => {
@@ -1272,9 +1336,9 @@ export class ClientAiEngine {
       analysis_id: analysisId,
       analysis_type: isProduceMode ? 'freshness' : 'waste',
       detected_class: primaryCategoryId,
-      detected_food: primaryTaxonomy.name,
-      detected_item: primaryTaxonomy.name,
-      display_name: primaryTaxonomy.name,
+      detected_food: finalDetectedFood,
+      detected_item: finalDisplayName,
+      display_name: finalDisplayName,
       category: primaryTaxonomy.name,
       freshness: visualFreshness,
       risk: riskLevel,
@@ -1354,6 +1418,8 @@ export class ClientAiEngine {
     let edgeEnergy = 0;
 
     // Biodegradable Pigment Counts
+    let fastFoodGoldenCount = 0;
+    let greaseproofPaperCount = 0;
     let chlorophyllCount = 0;
     let carotenoidCount = 0;
     let anthocyaninCount = 0;
@@ -1400,12 +1466,20 @@ export class ClientAiEngine {
         const luma = (r * 299 + g * 587 + b * 114) / 1000;
         const [h, s, v] = rgbToHsv(r, g, b);
 
+        // Warm food hues (fried items, cooked meats, burger buns, sauces)
+        const isWarmFoodHue = (h >= 14 && h <= 65 && s >= 0.08);
+
         // Specular Glint (Plastics, polished metals, glass, glossy packaging)
-        if (v > 0.88 && s < 0.20 && (s > 0.02 || v > 0.94)) {
+        // NOTE: Oil glints on fried food or glossy burger buns must NOT be counted as cold metal/glass/plastic glint!
+        if (v > 0.92 && s < 0.16 && !isWarmFoodHue) {
           specularCount++;
         }
 
         // --- BIODEGRADABLE PIGMENTS ---
+        // Fast Food Golden Fry, Battered Chicken & Nugget Pigment (Crispy golden yellow-amber)
+        if (h >= 28 && h <= 62 && s >= 0.20 && v >= 0.32) {
+          fastFoodGoldenCount++;
+        }
         // Chlorophyll Greens (Leaves, Lettuce, Cabbage, Herbs, Green Peels)
         if (h >= 65 && h <= 165 && s >= 0.18 && v >= 0.18) {
           chlorophyllCount++;
@@ -1423,8 +1497,12 @@ export class ClientAiEngine {
           bananaYellowCount++;
         }
         // Cooked Food Carbohydrate & Protein Brown (Burger buns, cooked meat, curry, bread crust, rice)
-        if (h >= 16 && h <= 50 && s >= 0.16 && s <= 0.80 && v >= 0.18 && v <= 0.78) {
+        if (h >= 14 && h <= 50 && s >= 0.14 && s <= 0.85 && v >= 0.15 && v <= 0.80) {
           cookedBrownCount++;
+        }
+        // Greaseproof Wrapping Paper, Parchment, Food Wrap Napkins
+        if (s < 0.20 && v >= 0.65 && !isWarmFoodHue) {
+          greaseproofPaperCount++;
         }
         // Mold & Fungal Decay
         if ((h >= 100 && h <= 210 && s >= 0.08 && s <= 0.38 && v >= 0.38 && v <= 0.82) || (v < 0.22 && s < 0.25)) {
@@ -1437,18 +1515,18 @@ export class ClientAiEngine {
 
         // --- NON-BIODEGRADABLE MATERIALS ---
         // 1. Clear / Lightly Tinted PET Plastic (Water bottles, soda bottles, clear plastic cups)
-        if ((v >= 0.55 && s <= 0.25) || (h >= 170 && h <= 235 && s <= 0.45 && v >= 0.45)) {
+        if (!isWarmFoodHue && ((v >= 0.55 && s <= 0.20) || (h >= 170 && h <= 235 && s <= 0.45 && v >= 0.45))) {
           clearPetCount++;
         }
         // 2. Soft Plastic Films & Packaging Wrappers (plastic bags, snack wrappers, pouches)
-        if ((s >= 0.45 && v >= 0.35) || (v > 0.82 && s < 0.15)) {
+        if (!isWarmFoodHue && ((s >= 0.45 && v >= 0.35) || (v > 0.82 && s < 0.12))) {
           plasticCreaseCount++;
         }
-        if (s > 0.55 && v > 0.30) {
+        if (!isWarmFoodHue && s > 0.55 && v > 0.30) {
           thinFilmInkCount++;
         }
         // 3. Rigid Plastics (HDPE containers, takeout tubs, buckets, bottles, caps)
-        if ((s >= 0.25 && s <= 0.80 && v >= 0.35) || (v >= 0.70 && s <= 0.20)) {
+        if (!isWarmFoodHue && ((s >= 0.25 && s <= 0.80 && v >= 0.35) || (v >= 0.70 && s <= 0.18))) {
           rigidPolymerCount++;
         }
         // Synthetic Cyan / PET blue tint
@@ -1456,22 +1534,27 @@ export class ClientAiEngine {
           syntheticCyanCount++;
         }
         // 4. Metal & Aluminum Cans / Foil
-        if (s < 0.15 && v >= 0.38 && v <= 0.90) {
+        // Unpainted metal: neutral grey/silver strictly without warm food hues
+        if (s < 0.08 && v >= 0.35 && v <= 0.88 && !isWarmFoodHue) {
           metallicSheenCount++;
         }
-        if ((v > 0.85 && s < 0.20) || (s > 0.50 && v > 0.40)) {
+        // Beverage cans: cold synthetic colors with specular glint, never warm food
+        const isSyntheticCanColor = (h >= 180 && h <= 250 && s > 0.40) || (h <= 10 && s > 0.65);
+        if (isSyntheticCanColor && specularCount > 0 && !isWarmFoodHue) {
           beverageCanCount++;
         }
         // 5. Glass Containers & Bottles (Clear flint, amber, or emerald glass)
         if (
-          (v > 0.88 && s < 0.16) ||
-          (h >= 22 && h <= 45 && s >= 0.38 && v >= 0.25 && v <= 0.75) ||
-          (h >= 115 && h <= 160 && s >= 0.35 && v >= 0.30 && v <= 0.75)
+          !isWarmFoodHue && (
+            (v > 0.88 && s < 0.12) ||
+            (h >= 22 && h <= 45 && s >= 0.38 && v >= 0.25 && v <= 0.75) ||
+            (h >= 115 && h <= 160 && s >= 0.35 && v >= 0.30 && v <= 0.75)
+          )
         ) {
           glassVitreousCount++;
         }
         // 6. Electronic Scrap & E-Waste
-        if (v < 0.36 && s < 0.28) {
+        if (v < 0.36 && s < 0.28 && !isWarmFoodHue) {
           darkEwasteCount++;
         }
         if (h >= 115 && h <= 155 && s >= 0.35 && v <= 0.65) {
@@ -1480,19 +1563,19 @@ export class ClientAiEngine {
         if (h >= 190 && h <= 240 && s >= 0.32 && v <= 0.72) {
           pcbBlueCount++;
         }
-        if (h >= 28 && h <= 55 && s >= 0.35 && v >= 0.50) {
+        if (!isWarmFoodHue && h >= 28 && h <= 55 && s >= 0.35 && v >= 0.50) {
           metallicContactCount++;
         }
-        // 7. Styrofoam Foam (EPS)
-        if (v >= 0.78 && s < 0.08) {
+        // 7. Styrofoam Foam (EPS) - Pure white bead foam, NOT warm food or wrapping paper
+        if (v >= 0.85 && s < 0.05 && !isWarmFoodHue && greaseproofPaperCount < samples * 0.3) {
           styrofoamWhiteCount++;
         }
         // 8. Composite Packaging (Tetra Pak cartons)
-        if ((h >= 180 && h <= 240 && s >= 0.30) || (h >= 15 && h <= 55 && s >= 0.25 && v >= 0.40)) {
+        if (!isWarmFoodHue && ((h >= 180 && h <= 240 && s >= 0.30) || (h >= 15 && h <= 55 && s >= 0.25 && v >= 0.40))) {
           compositeCartonCount++;
         }
         // 9. Textiles & Fabrics
-        if (s >= 0.22 && v >= 0.25 && v <= 0.85) {
+        if (!isWarmFoodHue && s >= 0.22 && v >= 0.25 && v <= 0.85) {
           textileClothCount++;
         }
         // 10. Medical / Sanitary PPE (surgical blue/cyan mask or latex)
@@ -1550,106 +1633,116 @@ export class ClientAiEngine {
     // Mode-specific sensitivity multiplier: elevate non-biodegradable sensitivity in 'waste' classification mode
     const nonBioMultiplier = isWasteMode ? 1.35 : 1.0;
 
+    // Detect food biomass pigment presence to prevent food being misclassified as plastics or metals
+    const foodPigmentTotal = fastFoodGoldenCount + cookedBrownCount + bananaYellowCount + carotenoidCount + anthocyaninCount;
+    const isFoodPigment = foodPigmentTotal >= validSamples * 0.10;
+    const isFastFood = (fastFoodGoldenCount + cookedBrownCount) >= validSamples * 0.14;
+
     // Material Classification Scoring for this cell
     const cellScores: Record<string, number> = {
-      // BIODEGRADABLE FOOD & ORGANICS (Active in all modes, protected against shiny synthetic packaging)
-      organic_food_waste: (cookedBrownCount >= validSamples * 0.15 && specularCount <= 1
-        ? ((cookedBrownCount / validSamples) * 3.5 + (avgEdge > 22 ? 0.35 : 0)) * saliency * (isWasteMode ? 0.90 : 1.0)
+      // BIODEGRADABLE: FAST FOOD & JUNK FOOD (Burgers, French Fries, Fried Chicken, Nuggets)
+      fast_food_junk_food: (isFastFood
+        ? (((fastFoodGoldenCount * 2.4 + cookedBrownCount * 2.0) / validSamples) * 4.2 + 0.50) * saliency
         : 0),
-      citrus_fruit_waste: (carotenoidCount >= validSamples * 0.12 && specularCount <= 1
+
+      // BIODEGRADABLE FOOD & ORGANICS (Active across modes; resilient to cooking oil glints)
+      organic_food_waste: (cookedBrownCount >= validSamples * 0.12
+        ? ((cookedBrownCount / validSamples) * 3.6 + (avgEdge > 20 ? 0.35 : 0)) * saliency * (isWasteMode ? 0.90 : 1.0)
+        : 0),
+      citrus_fruit_waste: (carotenoidCount >= validSamples * 0.12 && !isFastFood
         ? ((carotenoidCount / validSamples) * 3.6 + 0.35) * saliency
         : 0),
-      banana_waste: (bananaYellowCount >= validSamples * 0.12 && specularCount <= 1
+      banana_waste: (bananaYellowCount >= validSamples * 0.12 && !isFastFood
         ? ((bananaYellowCount / validSamples) * 3.8 + 0.40) * saliency
         : 0),
-      apple_produce_waste: (anthocyaninCount >= validSamples * 0.12 && specularCount <= 1
+      apple_produce_waste: (anthocyaninCount >= validSamples * 0.12 && !isFastFood
         ? ((anthocyaninCount / validSamples) * 3.6 + 0.35) * saliency
         : 0),
-      vegetable_peels_greens: (chlorophyllCount >= validSamples * 0.12 && specularCount <= 1
+      vegetable_peels_greens: (chlorophyllCount >= validSamples * 0.12
         ? ((chlorophyllCount / validSamples) * 3.5 + 0.35) * saliency
         : 0),
-      leaf_garden_waste: (chlorophyllCount >= validSamples * 0.18 && avgEdge > 26 && specularCount <= 1
+      leaf_garden_waste: (chlorophyllCount >= validSamples * 0.18 && avgEdge > 26
         ? ((chlorophyllCount / validSamples) * 2.8 + 0.40) * saliency
         : 0),
-      wood_timber_scrap: (cardboardKraftCount >= validSamples * 0.28 && avgEdge > 22 && !isBorder && specularCount <= 1
+      wood_timber_scrap: (cardboardKraftCount >= validSamples * 0.28 && avgEdge > 22 && !isBorder && !isFoodPigment
         ? ((cardboardKraftCount / validSamples) * 2.5 + 0.35) * saliency
         : 0),
-      paper_cardboard_waste: (cardboardKraftCount >= validSamples * 0.16 && specularCount <= 1
-        ? ((cardboardKraftCount / validSamples) * 3.0 + (avgEdge > 14 ? 0.35 : 0)) * saliency
+      paper_cardboard_waste: ((cardboardKraftCount >= validSamples * 0.16 || (greaseproofPaperCount >= validSamples * 0.25 && !isFastFood))
+        ? (((cardboardKraftCount * 2.5 + greaseproofPaperCount * 1.8) / validSamples) * 3.0 + (avgEdge > 12 ? 0.35 : 0)) * saliency
         : 0),
       organic_decay_mold: (moldMyceliumCount >= validSamples * 0.12
         ? ((moldMyceliumCount / validSamples) * 3.5 + (avgEdge > 30 ? 0.45 : 0)) * saliency
         : 0),
 
-      // NON-BIODEGRADABLE MATERIALS & RECYCLABLES (High sensitivity)
-      plastic_bottles: (
-        (clearPetCount / validSamples) * 3.2 +
-        (specularCount / validSamples) * 3.5 +
-        (syntheticCyanCount / validSamples) * 2.8 +
-        (avgEdge > 14 ? 0.45 : 0)
-      ) * saliency * nonBioMultiplier,
+      // NON-BIODEGRADABLE MATERIALS & RECYCLABLES (Strictly zeroed out when cell contains food pigments)
+      plastic_bottles: (!isFoodPigment
+        ? ((clearPetCount / validSamples) * 3.2 +
+           (specularCount / validSamples) * 3.5 +
+           (syntheticCyanCount / validSamples) * 2.8 +
+           (avgEdge > 14 ? 0.45 : 0)) * saliency * nonBioMultiplier
+        : 0),
 
-      plastic_bags_wrappers: (
-        ((specularCount > 0 || (avgEdge > 22 && cookedBrownCount < validSamples * 0.20))
-          ? ((thinFilmInkCount / validSamples) * 2.5 +
-             (plasticCreaseCount / validSamples) * 2.2 +
-             (avgEdge > 20 ? 0.45 : 0) +
-             (specularCount > 0 ? 0.40 : 0))
-          : 0)
-      ) * saliency * nonBioMultiplier,
+      plastic_bags_wrappers: (!isFoodPigment
+        ? ((specularCount > 0 || (avgEdge > 22 && cookedBrownCount < validSamples * 0.20))
+            ? ((thinFilmInkCount / validSamples) * 2.5 +
+               (plasticCreaseCount / validSamples) * 2.2 +
+               (avgEdge > 20 ? 0.45 : 0) +
+               (specularCount > 0 ? 0.40 : 0))
+            : 0) * saliency * nonBioMultiplier
+        : 0),
 
-      rigid_plastic_containers: (
-        (rigidPolymerCount / validSamples) * 2.5 +
-        (specularCount / validSamples) * 2.2 +
-        (avgEdge > 12 ? 0.40 : 0)
-      ) * saliency * nonBioMultiplier,
+      rigid_plastic_containers: (!isFoodPigment
+        ? ((rigidPolymerCount / validSamples) * 2.5 +
+           (specularCount / validSamples) * 2.2 +
+           (avgEdge > 12 ? 0.40 : 0)) * saliency * nonBioMultiplier
+        : 0),
 
-      metal_cans_tins: (
-        (metallicSheenCount / validSamples) * 3.5 +
-        (beverageCanCount / validSamples) * 3.2 +
-        (specularCount / validSamples) * 3.0 +
-        (avgEdge > 16 ? 0.45 : 0)
-      ) * saliency * nonBioMultiplier,
+      metal_cans_tins: (!isFoodPigment
+        ? ((metallicSheenCount / validSamples) * 3.5 +
+           (beverageCanCount / validSamples) * 3.2 +
+           (specularCount / validSamples) * 3.0 +
+           (avgEdge > 16 ? 0.45 : 0)) * saliency * nonBioMultiplier
+        : 0),
 
-      glass_containers: (
-        (glassVitreousCount / validSamples) * 3.2 +
-        (specularCount > 2 ? (specularCount / validSamples) * 3.5 : 0) +
-        (avgEdge > 14 ? 0.40 : 0)
-      ) * saliency * nonBioMultiplier,
+      glass_containers: (!isFoodPigment
+        ? ((glassVitreousCount / validSamples) * 3.2 +
+           (specularCount > 2 ? (specularCount / validSamples) * 3.5 : 0) +
+           (avgEdge > 14 ? 0.40 : 0)) * saliency * nonBioMultiplier
+        : 0),
 
-      electronic_ewaste: (
-        (darkEwasteCount / validSamples) * 3.5 +
-        ((darkEwasteCount > 0 || metallicContactCount > 0) ? (pcbGreenCount / validSamples) * 3.5 + (pcbBlueCount / validSamples) * 3.5 : 0) +
-        (metallicContactCount / validSamples) * 3.2 +
-        (avgEdge > 16 ? 0.50 : 0)
-      ) * saliency * nonBioMultiplier,
+      electronic_ewaste: (!isFoodPigment
+        ? ((darkEwasteCount / validSamples) * 3.5 +
+           ((darkEwasteCount > 0 || metallicContactCount > 0) ? (pcbGreenCount / validSamples) * 3.5 + (pcbBlueCount / validSamples) * 3.5 : 0) +
+           (metallicContactCount / validSamples) * 3.2 +
+           (avgEdge > 16 ? 0.50 : 0)) * saliency * nonBioMultiplier
+        : 0),
 
-      styrofoam_foam: (
-        (styrofoamWhiteCount / validSamples) * 4.5 +
-        (specularCount === 0 && styrofoamWhiteCount >= validSamples * 0.35 ? 0.65 : 0) +
-        (avgEdge > 5 ? 0.60 : 0)
-      ) * saliency * nonBioMultiplier,
+      styrofoam_foam: (!isFoodPigment
+        ? ((styrofoamWhiteCount / validSamples) * 4.5 +
+           (specularCount === 0 && styrofoamWhiteCount >= validSamples * 0.35 ? 0.65 : 0) +
+           (avgEdge > 5 ? 0.60 : 0)) * saliency * nonBioMultiplier
+        : 0),
 
-      hazardous_chemical: (
-        (darkEwasteCount / validSamples) * 2.2 +
-        (thinFilmInkCount / validSamples) * 2.2 +
-        (metallicContactCount / validSamples) * 2.5
-      ) * saliency * nonBioMultiplier,
+      hazardous_chemical: (!isFoodPigment
+        ? ((darkEwasteCount / validSamples) * 2.2 +
+           (thinFilmInkCount / validSamples) * 2.2 +
+           (metallicContactCount / validSamples) * 2.5) * saliency * nonBioMultiplier
+        : 0),
 
-      composite_packaging: (
-        (compositeCartonCount / validSamples) * 3.0 +
-        (avgEdge > 16 ? 0.40 : 0)
-      ) * saliency * nonBioMultiplier,
+      composite_packaging: (!isFoodPigment
+        ? ((compositeCartonCount / validSamples) * 3.0 +
+           (avgEdge > 16 ? 0.40 : 0)) * saliency * nonBioMultiplier
+        : 0),
 
-      textiles_fabric_waste: (
-        (textileClothCount / validSamples) * 3.2 +
-        (avgEdge >= 12 && avgEdge <= 36 ? 0.45 : 0)
-      ) * saliency * nonBioMultiplier,
+      textiles_fabric_waste: (!isFoodPigment
+        ? ((textileClothCount / validSamples) * 3.2 +
+           (avgEdge >= 12 && avgEdge <= 36 ? 0.45 : 0)) * saliency * nonBioMultiplier
+        : 0),
 
-      medical_sanitary_waste: (
-        (medicalMaskCount / validSamples) * 3.6 +
-        (avgEdge > 14 ? 0.40 : 0)
-      ) * saliency * nonBioMultiplier
+      medical_sanitary_waste: (!isFoodPigment
+        ? ((medicalMaskCount / validSamples) * 3.6 +
+           (avgEdge > 14 ? 0.40 : 0)) * saliency * nonBioMultiplier
+        : 0)
     };
 
     // Deep Learning Neural Prior Fusion: boost cell score using MobileNet classification probability
