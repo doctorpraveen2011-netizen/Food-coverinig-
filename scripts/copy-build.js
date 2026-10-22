@@ -54,12 +54,13 @@ if (fs.existsSync(docsIndex)) {
   fs.writeFileSync(docsIndex, content, 'utf-8');
 }
 
-// 6. Create 404.html fallbacks for SPA client-side routing on GitHub Pages
+// 6. Create 404.html fallbacks and production index.html in root for GitHub Pages
 const distIndex = path.join(distDir, 'index.html');
 if (fs.existsSync(distIndex)) {
   fs.copyFileSync(docsIndex, path.join(docsDir, '404.html'));
   fs.copyFileSync(distIndex, path.join(rootDir, '404.html'));
-  console.log('✓ Successfully copied dist -> docs, synchronized root assets, added .nojekyll, and generated 404.html fallbacks.');
+  fs.copyFileSync(distIndex, path.join(rootDir, 'index.html'));
+  console.log('✓ Successfully copied dist -> docs, root index.html, synchronized root assets, added .nojekyll, and generated 404.html fallbacks.');
 } else {
   console.warn('Warning: dist/index.html not found.');
 }
