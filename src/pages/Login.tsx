@@ -2,7 +2,27 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/useAuthStore';
-import { Leaf, Eye, EyeOff, Loader2, AlertCircle, ShieldCheck, CheckCircle2, Gift, Sparkles, ArrowRight } from 'lucide-react';
+import { 
+  Leaf, 
+  Eye, 
+  EyeOff, 
+  Loader2, 
+  AlertCircle, 
+  ShieldCheck, 
+  CheckCircle2, 
+  Gift, 
+  Sparkles, 
+  ArrowRight,
+  Globe,
+  ChevronDown,
+  Check
+} from 'lucide-react';
+import { 
+  SUPPORTED_LANGUAGES, 
+  getCurrentLanguage, 
+  setGlobalLanguage, 
+  type SupportedLanguage 
+} from '../utils/languageCoordinator';
 
 export default function Login() {
   const { t, i18n } = useTranslation();
@@ -17,11 +37,14 @@ export default function Login() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+  const [isLangOpen, setIsLangOpen] = useState(false);
+
+  const currentLang = (i18n.language ? i18n.language.split('-')[0] : getCurrentLanguage()) as SupportedLanguage;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      setErrorMessage('Please enter both email/username and password.');
+      setErrorMessage(t('login.emailPlaceholder', 'Please enter both email/username and password.'));
       return;
     }
 
@@ -89,30 +112,91 @@ export default function Login() {
     setErrorMessage(null);
   };
 
-  const changeLanguage = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    i18n.changeLanguage(e.target.value);
+  const selectLanguage = (code: SupportedLanguage) => {
+    setGlobalLanguage(code);
+    setIsLangOpen(false);
   };
 
+  const activeLangOption = SUPPORTED_LANGUAGES.find(l => l.code === currentLang) || SUPPORTED_LANGUAGES[0];
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-8 px-4 sm:px-6 lg:px-8 relative">
+      {/* Top Floating Language Switcher Bar */}
+      <div className="sm:mx-auto sm:w-full sm:max-w-md flex justify-end mb-2">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsLangOpen(!isLangOpen)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200/90 rounded-full text-xs font-semibold text-slate-700 shadow-2xs hover:border-emerald-300 transition-all cursor-pointer"
+            title="Change platform language"
+          >
+            <Globe className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="text-sm leading-none">{activeLangOption.flag}</span>
+            <span className="text-xs font-bold text-slate-800">{activeLangOption.nativeName}</span>
+            <span className="text-[10px] uppercase font-mono text-slate-400">({activeLangOption.code})</span>
+            <ChevronDown className="w-3 h-3 text-slate-400" />
+          </button>
+
+          {isLangOpen && (
+            <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-50 text-xs animate-in fade-in zoom-in-95">
+              <div className="px-3 py-1.5 border-b border-slate-100 flex items-center justify-between mb-1">
+                <span className="font-bold text-[11px] text-slate-700 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-emerald-600" />
+                  {t('navbar.selectLanguage', 'Select Language')}
+                </span>
+                <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-bold">
+                  8 Languages
+                </span>
+              </div>
+              <div className="max-h-60 overflow-y-auto space-y-0.5">
+                {SUPPORTED_LANGUAGES.map((lang) => {
+                  const isSelected = currentLang === lang.code;
+                  return (
+                    <button
+                      key={lang.code}
+                      type="button"
+                      onClick={() => selectLanguage(lang.code)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-emerald-50 text-emerald-900 font-bold border border-emerald-200/70'
+                          : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-base leading-none">{lang.flag}</span>
+                        <div>
+                          <div className="font-bold text-xs leading-snug">{lang.nativeName}</div>
+                          <div className="text-[10px] text-slate-400 leading-none">{lang.name}</div>
+                        </div>
+                      </div>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Brand & Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 mb-4 shadow-sm">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 mb-3 shadow-sm">
           <Leaf className="w-8 h-8 fill-current" />
         </div>
         <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
           FoodCovering <span className="text-emerald-600 font-semibold text-2xl">2.0</span>
         </h2>
         <p className="mt-1 text-sm text-emerald-700 font-semibold tracking-wide">
-          Safe Food • Healthy Tomorrow
+          {t('slogan', 'Safe Food • Healthy Tomorrow')}
         </p>
-        <p className="mt-2 text-xs text-slate-500">
-          Intelligent food safety enforcement, commercial surplus monitoring & public donation ecosystem.
+        <p className="mt-2 text-xs text-slate-500 max-w-sm mx-auto">
+          {t('login.subtitle', 'Intelligent food safety enforcement, commercial surplus monitoring & public donation ecosystem.')}
         </p>
       </div>
 
       {/* Main Card */}
-      <div className="mt-7 sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-6 sm:px-10 shadow-xl shadow-slate-200/50 rounded-2xl border border-slate-200/80">
           {/* Error Banner */}
           {errorMessage && (
@@ -124,10 +208,10 @@ export default function Login() {
             </div>
           )}
 
-          <form className="space-y-5" onSubmit={handleLogin}>
+          <form className="space-y-4" onSubmit={handleLogin}>
             <div>
               <label htmlFor="email" className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Email Address or Username
+                {t('login.emailLabel', 'Email Address or Username')}
               </label>
               <input
                 id="email"
@@ -137,7 +221,7 @@ export default function Login() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter registered email or username"
+                placeholder={t('login.emailPlaceholder', 'Enter registered email or username')}
                 className="appearance-none block w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all"
               />
             </div>
@@ -145,14 +229,14 @@ export default function Login() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label htmlFor="password" className="block text-xs font-semibold text-slate-700">
-                  Password
+                  {t('login.passwordLabel', 'Password')}
                 </label>
                 <button
                   type="button"
                   onClick={() => setForgotModalOpen(true)}
                   className="text-xs font-medium text-emerald-600 hover:text-emerald-700 hover:underline"
                 >
-                  Forgot password?
+                  {t('login.forgotPassword', 'Forgot password?')}
                 </button>
               </div>
               <div className="relative">
@@ -164,7 +248,7 @@ export default function Login() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter account password"
+                  placeholder={t('login.passwordPlaceholder', 'Enter account password')}
                   className="appearance-none block w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition-all pr-10"
                 />
                 <button
@@ -188,7 +272,9 @@ export default function Login() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 text-emerald-600 focus:ring-emerald-500 border-slate-300 rounded accent-emerald-600"
                 />
-                <span className="text-xs font-medium text-slate-600">Remember this session</span>
+                <span className="text-xs font-medium text-slate-600">
+                  {t('login.rememberMe', 'Remember this session')}
+                </span>
               </label>
             </div>
 
@@ -201,10 +287,10 @@ export default function Login() {
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Verifying Credentials...</span>
+                    <span>{t('login.verifying', 'Verifying Credentials...')}</span>
                   </>
                 ) : (
-                  <span>SIGN IN TO DASHBOARD</span>
+                  <span>{t('login.loginBtn', 'SIGN IN TO DASHBOARD')}</span>
                 )}
               </button>
             </div>
@@ -213,7 +299,7 @@ export default function Login() {
           {/* Quick Demo Credentials Helper & Direct Access Credential Points */}
           <div className="mt-6 pt-5 border-t border-slate-100">
             <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2.5 text-center">
-              Quick Role Test Logins & Credential Points
+              {t('login.quickDemoTitle', 'Quick Role Test Logins & Credential Points')}
             </p>
 
             {/* FEATURED: Direct Credential Point for Supermarket Official Surplus Donations */}
@@ -224,16 +310,16 @@ export default function Login() {
                     <Gift className="w-4 h-4 text-blue-200" />
                   </div>
                   <span className="text-xs font-bold text-white tracking-wide">
-                    Supermarket Official • Surplus & Credits
+                    {t('login.supermarketTitle', 'Supermarket Official • Surplus & Credits')}
                   </span>
                 </div>
                 <span className="text-[10px] font-bold bg-emerald-500/90 text-white px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
                   <Sparkles className="w-2.5 h-2.5" />
-                  Direct 1-Click
+                  {t('login.direct1Click', 'Direct 1-Click')}
                 </span>
               </div>
               <p className="text-[11px] text-blue-100 mb-2.5 leading-snug">
-                Jump straight to <strong>Store Surplus Donations & Charity Pickups</strong> with full CSR Credit Points tracking.
+                {t('login.supermarketDesc', 'Jump straight to Store Surplus Donations & Charity Pickups with full CSR Credit Points tracking.')}
               </p>
               <div className="flex items-center gap-2">
                 <button
@@ -246,7 +332,7 @@ export default function Login() {
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
                     <>
-                      <span>Open Surplus Donations</span>
+                      <span>{t('login.openSurplus', 'Open Surplus Donations')}</span>
                       <ArrowRight className="w-3.5 h-3.5 text-blue-700" />
                     </>
                   )}
@@ -254,9 +340,9 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => fillQuickDemo('official@freshmart.com', 'Official@123')}
-                  className="py-2 px-2.5 bg-blue-900/50 hover:bg-blue-900/80 text-blue-100 text-[10px] font-semibold rounded-lg border border-white/20 transition-colors"
+                  className="py-2 px-2.5 bg-blue-900/50 hover:bg-blue-900/80 text-blue-100 text-[10px] font-semibold rounded-lg border border-white/20 transition-colors cursor-pointer"
                 >
-                  Fill Form
+                  {t('login.fillForm', 'Fill Form')}
                 </button>
               </div>
             </div>
@@ -264,8 +350,12 @@ export default function Login() {
             <div className="grid grid-cols-1 gap-1.5">
               <div className="w-full p-2 rounded-lg bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-200/70 transition-colors flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-bold text-emerald-950 block">1. Head Office Administrator</span>
-                  <span className="text-[10px] text-emerald-700">admin@foodcovering.gov • Full system authority</span>
+                  <span className="text-xs font-bold text-emerald-950 block">
+                    {t('login.adminRole', '1. Head Office Administrator')}
+                  </span>
+                  <span className="text-[10px] text-emerald-700">
+                    {t('login.adminRoleDesc', 'admin@foodcovering.gov • Full system authority')}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -274,22 +364,26 @@ export default function Login() {
                     onClick={() => quickLoginAndNavigate('admin@foodcovering.gov', 'Admin@Secure2026!')}
                     className="text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-2 py-0.5 rounded shadow-2xs cursor-pointer transition-colors"
                   >
-                    1-Click
+                    {t('login.oneClick', '1-Click')}
                   </button>
                   <button
                     type="button"
                     onClick={() => fillQuickDemo('admin@foodcovering.gov', 'Admin@Secure2026!')}
                     className="text-[10px] font-bold text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-50 cursor-pointer"
                   >
-                    Fill
+                    {t('login.fill', 'Fill')}
                   </button>
                 </div>
               </div>
 
               <div className="w-full p-2 rounded-lg bg-blue-50/70 hover:bg-blue-100/70 border border-blue-200/70 transition-colors flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-bold text-blue-950 block">2. Supermarket Official (FreshMart)</span>
-                  <span className="text-[10px] text-blue-700">official@freshmart.com • Inventory & store scope</span>
+                  <span className="text-xs font-bold text-blue-950 block">
+                    {t('login.supermarketRole', '2. Supermarket Official (FreshMart)')}
+                  </span>
+                  <span className="text-[10px] text-blue-700">
+                    {t('login.supermarketRoleDesc', 'official@freshmart.com • Inventory & store scope')}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -298,22 +392,26 @@ export default function Login() {
                     onClick={() => quickLoginAndNavigate('official@freshmart.com', 'Official@123', '/supermarket/dashboard')}
                     className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-2 py-0.5 rounded shadow-2xs cursor-pointer transition-colors"
                   >
-                    1-Click
+                    {t('login.oneClick', '1-Click')}
                   </button>
                   <button
                     type="button"
                     onClick={() => fillQuickDemo('official@freshmart.com', 'Official@123')}
                     className="text-[10px] font-bold text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 hover:bg-blue-50 cursor-pointer"
                   >
-                    Fill
+                    {t('login.fill', 'Fill')}
                   </button>
                 </div>
               </div>
 
               <div className="w-full p-2 rounded-lg bg-amber-50/70 hover:bg-amber-100/70 border border-amber-200/70 transition-colors flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-bold text-amber-950 block">3. Normal User (Aditi Verma)</span>
-                  <span className="text-[10px] text-amber-700">user@foodcovering.com • Donations & complaints</span>
+                  <span className="text-xs font-bold text-amber-950 block">
+                    {t('login.userRole', '3. Normal User (Aditi Verma)')}
+                  </span>
+                  <span className="text-[10px] text-amber-700">
+                    {t('login.userRoleDesc', 'user@foodcovering.com • Donations & complaints')}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -322,14 +420,14 @@ export default function Login() {
                     onClick={() => quickLoginAndNavigate('user@foodcovering.com', 'User@123')}
                     className="text-[10px] font-bold text-white bg-amber-600 hover:bg-amber-700 px-2 py-0.5 rounded shadow-2xs cursor-pointer transition-colors"
                   >
-                    1-Click
+                    {t('login.oneClick', '1-Click')}
                   </button>
                   <button
                     type="button"
                     onClick={() => fillQuickDemo('user@foodcovering.com', 'User@123')}
                     className="text-[10px] font-bold text-amber-800 bg-white px-2 py-0.5 rounded border border-amber-200 hover:bg-amber-50 cursor-pointer"
                   >
-                    Fill
+                    {t('login.fill', 'Fill')}
                   </button>
                 </div>
               </div>
@@ -338,9 +436,9 @@ export default function Login() {
 
           {/* Citizen Registration Link */}
           <div className="mt-5 text-center text-xs text-slate-600">
-            Don't have an account?{' '}
+            {t('login.noAccount', "Don't have an account?")}{' '}
             <Link to="/register" className="font-bold text-emerald-600 hover:text-emerald-700 hover:underline">
-              Register as Citizen / Donor
+              {t('login.registerLink', 'Register as Citizen / Donor')}
             </Link>
           </div>
         </div>
@@ -350,26 +448,32 @@ export default function Login() {
       <div className="mt-8 flex flex-col items-center">
         <div className="flex items-center gap-2 mb-3">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span className="text-xs font-medium text-slate-500">
-            Protected by FoodCovering Zero-Trust Role Based Enforcement
+          <span className="text-xs font-medium text-slate-500 text-center">
+            {t('login.zeroTrust', 'Protected by FoodCovering Zero-Trust Role Based Enforcement')}
           </span>
         </div>
 
-        <select
-          className="text-xs bg-transparent border border-slate-300 rounded-lg px-2.5 py-1 text-slate-600 font-medium cursor-pointer mb-3"
-          onChange={changeLanguage}
-          value={i18n.language ? i18n.language.split('-')[0] : 'en'}
-        >
-          <option value="en">English (EN)</option>
-          <option value="ta">தமிழ் (TA)</option>
-          <option value="hi">हिन्दी (HI)</option>
-        </select>
+        {/* Full 8-language Selector in Footer */}
+        <div className="flex items-center gap-2 mb-3">
+          <Globe className="w-3.5 h-3.5 text-slate-400" />
+          <select
+            className="text-xs bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-700 font-semibold cursor-pointer shadow-2xs hover:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            onChange={(e) => setGlobalLanguage(e.target.value)}
+            value={currentLang}
+          >
+            {SUPPORTED_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.flag} {l.nativeName} ({l.name})
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <div className="flex space-x-6 text-xs text-slate-400">
-          <a href="#" className="hover:text-slate-600">Privacy Policy</a>
-          <a href="#" className="hover:text-slate-600">Terms of Service</a>
-          <a href="#" className="hover:text-slate-600">FSSAI Compliance</a>
-          <a href="#" className="hover:text-slate-600">Support</a>
+        <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs text-slate-400">
+          <a href="#" className="hover:text-slate-600">{t('login.privacyPolicy', 'Privacy Policy')}</a>
+          <a href="#" className="hover:text-slate-600">{t('login.terms', 'Terms of Service')}</a>
+          <a href="#" className="hover:text-slate-600">{t('login.fssai', 'FSSAI Compliance')}</a>
+          <a href="#" className="hover:text-slate-600">{t('login.support', 'Support')}</a>
         </div>
       </div>
 
@@ -377,15 +481,17 @@ export default function Login() {
       {forgotModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in">
-            <h3 className="text-base font-bold text-slate-900 mb-1">Reset Password</h3>
+            <h3 className="text-base font-bold text-slate-900 mb-1">
+              {t('login.resetPassword', 'Reset Password')}
+            </h3>
             <p className="text-xs text-slate-500 mb-4">
-              Enter your registered email address and we'll send you an administrative verification link.
+              {t('login.resetDesc', "Enter your registered email address and we'll send you an administrative verification link.")}
             </p>
 
             {forgotSent ? (
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-800 font-medium mb-4">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Verification instructions sent to your email. Check inbox.</span>
+                <span>{t('login.instructionsSent', 'Verification instructions sent to your email. Check inbox.')}</span>
               </div>
             ) : (
               <input
@@ -403,17 +509,17 @@ export default function Login() {
                   setForgotModalOpen(false);
                   setForgotSent(false);
                 }}
-                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
               >
-                Close
+                {t('login.close', 'Close')}
               </button>
               {!forgotSent && (
                 <button
                   type="button"
                   onClick={() => setForgotSent(true)}
-                  className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg"
+                  className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg cursor-pointer"
                 >
-                  Send Reset Link
+                  {t('login.sendResetLink', 'Send Reset Link')}
                 </button>
               )}
             </div>

@@ -23,14 +23,19 @@ import { useComplaintsStore } from '../../store/useComplaintsStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import CredentialPointsModal from '../credentials/CredentialPointsModal';
 import BackendStatusBadge from './BackendStatusBadge';
-import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '../../utils/aiTranslations';
+import { 
+  SUPPORTED_LANGUAGES, 
+  setGlobalLanguage, 
+  getCurrentLanguage, 
+  type SupportedLanguage 
+} from '../../utils/languageCoordinator';
 
 interface TopNavbarProps {
   toggleSidebar: () => void;
 }
 
 export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { setSearchQuery } = useComplaintsStore();
   const user = useAuthStore((state) => state.user);
@@ -66,10 +71,10 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const currentLangCode = (i18n.language ? i18n.language.split('-')[0] : 'en') as SupportedLanguage;
+  const currentLangCode = (i18n.language ? i18n.language.split('-')[0] : getCurrentLanguage()) as SupportedLanguage;
 
   const handleSelectLanguage = (code: SupportedLanguage) => {
-    i18n.changeLanguage(code);
+    setGlobalLanguage(code);
     setIsLangMenuOpen(false);
   };
 
@@ -98,7 +103,7 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
           <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input 
             type="text" 
-            placeholder="Search by ID, name, phone, email, location, food type..."
+            placeholder={t('navbar.searchPlaceholder', 'Search by ID, name, phone, email, location, food type...')}
             onKeyDown={handleGlobalSearch}
             className="w-full pl-10 pr-4 py-2 bg-gray-50/80 hover:bg-white focus:bg-white border border-gray-200 rounded-xl text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-2xs"
           />
@@ -121,7 +126,7 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
             <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
           </span>
           <MapPin className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
-          <span>Live GPS Map</span>
+          <span>{t('navbar.liveGpsMap', 'Live GPS Map')}</span>
         </button>
 
         {/* Sustainability Credential Points Pill */}
@@ -132,7 +137,7 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
         >
           <Award className="w-3.5 h-3.5 text-amber-600 group-hover:rotate-12 transition-transform" />
           <span className="font-extrabold">{(user?.creditPoints || 1285).toLocaleString()}</span>
-          <span className="hidden sm:inline text-amber-700/80 font-semibold text-[11px]">Pts</span>
+          <span className="hidden sm:inline text-amber-700/80 font-semibold text-[11px]">{t('navbar.pts', 'Pts')}</span>
           <span className="text-[10px] text-amber-800 font-extrabold uppercase bg-amber-200/60 border border-amber-300/70 px-1.5 py-0.2 rounded-md">
             {user?.tier || 'Gold'}
           </span>
@@ -156,9 +161,9 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
           {isNotificationOpen && (
             <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 space-y-3 animate-in fade-in z-30">
               <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                <span className="text-xs font-bold text-gray-900">Notifications</span>
+                <span className="text-xs font-bold text-gray-900">{t('navbar.notifications', 'Notifications')}</span>
                 <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  2 New
+                  2 {t('navbar.new', 'New')}
                 </span>
               </div>
               <div className="space-y-2.5 text-xs">
@@ -187,9 +192,9 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
                     setIsNotificationOpen(false);
                     navigate('/alerts');
                   }}
-                  className="w-full py-1.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-center font-semibold text-xs rounded-xl transition-colors block"
+                  className="w-full py-1.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-center font-semibold text-xs rounded-xl transition-colors block cursor-pointer"
                 >
-                  View All Alerts & Notifications →
+                  {t('navbar.viewAllAlerts', 'View All Alerts & Notifications →')}
                 </button>
               </div>
             </div>
@@ -256,10 +261,10 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
               <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
                 <span className="font-bold text-[11px] text-slate-800 flex items-center gap-1.5">
                   <Globe className="w-3.5 h-3.5 text-emerald-600" />
-                  Select Language
+                  {t('navbar.selectLanguage', 'Select Language')}
                 </span>
                 <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-bold">
-                  8 Languages
+                  {t('navbar.languagesCount', '8 Languages')}
                 </span>
               </div>
 
@@ -304,10 +309,10 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
               : 'FC';
 
             const userRoleName = user?.role === 'HEAD_OFFICE_ADMIN'
-              ? 'Head Office Admin'
+              ? t('headOfficeAdmin', 'Head Office Admin')
               : user?.role === 'SUPERMARKET_OFFICIAL'
-                ? (user?.supermarket?.name ? `Official • ${user.supermarket.name}` : 'Supermarket Official')
-                : 'Citizen / Donor';
+                ? (user?.supermarket?.name ? `${t('supermarketOfficial', 'Supermarket Official')} • ${user.supermarket.name}` : t('supermarketOfficial', 'Supermarket Official'))
+                : t('citizenDonor', 'Citizen / Donor');
 
             const profileRoute = user?.role === 'NORMAL_USER'
               ? '/user/settings'
@@ -354,7 +359,7 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
                       >
                         <User className="w-3.5 h-3.5 text-gray-400" />
-                        <span>Account Profile</span>
+                        <span>{t('navbar.accountProfile', 'Account Profile')}</span>
                       </button>
                     </div>
 
@@ -368,7 +373,7 @@ export default function TopNavbar({ toggleSidebar }: TopNavbarProps) {
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium cursor-pointer"
                       >
                         <LogOut className="w-3.5 h-3.5" />
-                        <span>Sign Out</span>
+                        <span>{t('navbar.signOut', 'Sign Out')}</span>
                       </button>
                     </div>
                   </div>

@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import { useAuthStore, type UserRole } from './store/useAuthStore';
 import { Leaf, Loader2 } from 'lucide-react';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import { initLanguageCoordinator } from './utils/languageCoordinator';
 
 // Normal User Pages
 import UserDashboard from './pages/user/UserDashboard';
@@ -111,6 +112,7 @@ function App() {
   const checkAuth = useAuthStore((state) => state.checkAuth);
 
   useEffect(() => {
+    initLanguageCoordinator();
     checkAuth();
   }, [checkAuth]);
 

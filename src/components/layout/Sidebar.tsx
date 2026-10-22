@@ -48,17 +48,17 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     navItems = [
       { name: t('storeDashboard', 'Store Dashboard'), icon: LayoutDashboard, path: '/supermarket/dashboard' },
       { name: t('inventory', 'Food Inventory'), icon: Package, path: '/supermarket/inventory' },
-      { name: t('tracking', 'Live GPS Tracking'), icon: MapPin, path: '/supermarket/tracking', badge: 'LIVE' },
+      { name: t('liveGpsTracking', 'Live GPS Tracking'), icon: MapPin, path: '/supermarket/tracking', badge: 'LIVE' },
       { name: t('aiFoodWasteScan', 'AI Food & Waste Scan'), icon: Sparkles, path: '/supermarket/ai-scan' },
       { name: t('surplusDonations', 'Surplus Donations'), icon: Gift, path: '/supermarket/donations' },
       { name: t('storeComplaints', 'Store Complaints'), icon: ShieldCheck, path: '/supermarket/complaints' },
       { name: t('auditReports', 'Audit Reports'), icon: FileText, path: '/supermarket/reports' },
-      { name: t('settings', 'Store Settings'), icon: Settings, path: '/supermarket/settings' },
+      { name: t('storeSettings', 'Store Settings'), icon: Settings, path: '/supermarket/settings' },
     ];
   } else {
     // HEAD_OFFICE_ADMIN
     navItems = [
-      { name: t('dashboard', 'Executive Dashboard'), icon: LayoutDashboard, path: '/admin/dashboard' },
+      { name: t('executiveDashboard', 'Executive Dashboard'), icon: LayoutDashboard, path: '/admin/dashboard' },
       { name: t('aiFoodWasteScan', 'AI Food & Waste Scan'), icon: Sparkles, path: '/admin/ai-scan' },
       { name: t('supermarkets', 'Supermarkets'), icon: Building2, path: '/admin/supermarkets' },
       { name: t('users', 'User Management'), icon: Users, path: '/admin/users' },
@@ -69,7 +69,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       { name: t('reports', 'Analytics & Reports'), icon: FileText, path: '/admin/reports' },
       { name: t('alerts', 'Alerts & Broadcasts'), icon: Bell, path: '/admin/alerts', badge: '3' },
       { name: t('auditLedger', 'Audit Ledger'), icon: FileCheck, path: '/admin/audit-logs' },
-      { name: t('settings', 'System Settings'), icon: Settings, path: '/admin/settings' },
+      { name: t('systemSettings', 'System Settings'), icon: Settings, path: '/admin/settings' },
     ];
   }
 
@@ -92,13 +92,17 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             <span className="text-sm font-bold text-slate-900 tracking-tight block">FoodCovering</span>
             <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded">2.0</span>
           </div>
-          <span className="text-[10px] text-slate-400 font-medium block">Safe Food • Healthy Tomorrow</span>
+          <span className="text-[10px] text-slate-400 font-medium block">
+            {t('slogan', 'Safe Food • Healthy Tomorrow')}
+          </span>
         </div>
       </div>
 
       {/* Role Pill Banner */}
       <div className="px-4 py-2 bg-slate-50 border-b border-slate-100">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Active Scope:</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+          {t('activeScope', 'Active Scope:')}
+        </span>
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${
             role === 'HEAD_OFFICE_ADMIN' ? 'bg-purple-600' :
@@ -106,9 +110,9 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             'bg-emerald-600'
           }`} />
           <span className="text-xs font-bold text-slate-800 truncate">
-            {role === 'HEAD_OFFICE_ADMIN' ? 'Head Office Admin' :
-             role === 'SUPERMARKET_OFFICIAL' ? (user?.supermarket?.name || 'Supermarket Official') :
-             'Citizen / Donor'}
+            {role === 'HEAD_OFFICE_ADMIN' ? t('headOfficeAdmin', 'Head Office Admin') :
+             role === 'SUPERMARKET_OFFICIAL' ? (user?.supermarket?.name ? `${t('supermarketOfficial', 'Supermarket Official')} • ${user.supermarket.name}` : t('supermarketOfficial', 'Supermarket Official')) :
+             t('citizenDonor', 'Citizen / Donor')}
           </span>
         </div>
       </div>
@@ -153,9 +157,11 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             <ShieldCheck className="w-4 h-4" />
           </div>
           <div>
-            <h4 className="font-bold text-[11px] text-slate-900 leading-snug">Food Safety Starts with You</h4>
+            <h4 className="font-bold text-[11px] text-slate-900 leading-snug">
+              {t('safetyStarts', 'Food Safety Starts with You')}
+            </h4>
             <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
-              Report, verify, and prevent spoilage for everyone.
+              {t('safetyStartsDesc', 'Report, verify, and prevent spoilage for everyone.')}
             </p>
           </div>
         </div>

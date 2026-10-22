@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../store/useAuthStore';
 import { getBackendUrl } from '../utils/apiConfig';
 import { 
@@ -33,6 +34,7 @@ import { usePipelineStore } from '../store/usePipelineStore';
 import { getStoredUsers } from '../data/mockDatabase';
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const user = useAuthStore((state) => state.user);
   const { kpi, activity, tracking, charts, tables, cityMap } = usePipelineStore();
   const [chartTab, setChartTab] = useState<'category' | 'quality'>('category');
@@ -160,7 +162,7 @@ export default function Dashboard() {
       {/* Top Welcome Bar */}
       <div className="pb-0.5">
         <p className="text-sm font-medium text-gray-600">
-          Welcome back, <span className="font-semibold text-gray-900">{user?.fullName || 'Admin User'}</span>! Here's what's happening with FoodCovering.
+          {t('welcomeMessage', { name: user?.fullName || 'Admin User' })}
         </p>
       </div>
 
@@ -173,7 +175,7 @@ export default function Dashboard() {
               <Utensils className="w-4 h-4 text-emerald-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-gray-500 truncate">Total Donations</p>
+              <p className="text-xs font-medium text-gray-500 truncate">{t('totalDonations', 'Total Donations')}</p>
               <div className="flex items-baseline gap-1.5">
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
                   {kpi.totalDonations || 559}
@@ -182,7 +184,7 @@ export default function Dashboard() {
                   <ArrowUp className="w-3 h-3 mr-0.5" /> 12%
                 </span>
               </div>
-              <p className="text-[11px] text-gray-400">vs. last week</p>
+              <p className="text-[11px] text-gray-400">{t('vsLastWeek', 'vs. last week')}</p>
             </div>
           </div>
         </div>
@@ -194,7 +196,7 @@ export default function Dashboard() {
               <Users className="w-4 h-4 text-blue-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-gray-500 truncate">Active Volunteers</p>
+              <p className="text-xs font-medium text-gray-500 truncate">{t('activeVolunteers', 'Active Volunteers')}</p>
               <div className="flex items-baseline gap-1.5">
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
                   {kpi.activeVolunteers || 321}
@@ -203,7 +205,7 @@ export default function Dashboard() {
                   <ArrowUp className="w-3 h-3 mr-0.5" /> 8%
                 </span>
               </div>
-              <p className="text-[11px] text-gray-400">vs. last week</p>
+              <p className="text-[11px] text-gray-400">{t('vsLastWeek', 'vs. last week')}</p>
             </div>
           </div>
         </div>
@@ -215,7 +217,7 @@ export default function Dashboard() {
               <AlertTriangle className="w-4 h-4 text-orange-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-gray-500 truncate">Complaints Resolved</p>
+              <p className="text-xs font-medium text-gray-500 truncate">{t('complaintsResolved', 'Complaints Resolved')}</p>
               <div className="flex items-baseline gap-1.5">
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
                   {kpi.complaintsResolved || 181}
@@ -224,7 +226,7 @@ export default function Dashboard() {
                   <ArrowUp className="w-3 h-3 mr-0.5" /> 15%
                 </span>
               </div>
-              <p className="text-[11px] text-gray-400">vs. last week</p>
+              <p className="text-[11px] text-gray-400">{t('vsLastWeek', 'vs. last week')}</p>
             </div>
           </div>
         </div>
@@ -236,7 +238,7 @@ export default function Dashboard() {
               <ShieldCheck className="w-4 h-4 text-purple-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium text-gray-500 truncate">Food Safety Score</p>
+              <p className="text-xs font-medium text-gray-500 truncate">{t('foodSafetyScore', 'Food Safety Score')}</p>
               <div className="flex items-baseline gap-1.5">
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
                   {kpi.foodSafetyScore || 96}%
@@ -245,7 +247,7 @@ export default function Dashboard() {
                   <ArrowUp className="w-3 h-3 mr-0.5" /> 6%
                 </span>
               </div>
-              <p className="text-[11px] text-gray-400">vs. last week</p>
+              <p className="text-[11px] text-gray-400">{t('vsLastWeek', 'vs. last week')}</p>
             </div>
           </div>
         </div>
