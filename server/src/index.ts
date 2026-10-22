@@ -2346,19 +2346,34 @@ app.post(['/api/ai/analyze', '/api/v1/analyze', '/api/ai/waste/analyze', '/api/v
       } else {
         const errorText = await mlRes.text();
         console.error(`[ML-Service] Error status ${mlRes.status}: ${errorText}`);
-        return res.status(502).json({ error: 'AI microservice returned an inference error', details: errorText });
+        let parsedDetail = errorText;
+        let errorCode = 'INFERENCE_FAILED';
+        try {
+          const jsonErr = JSON.parse(errorText);
+          parsedDetail = jsonErr.detail?.message || jsonErr.detail || jsonErr.message || errorText;
+          errorCode = jsonErr.detail?.error_code || jsonErr.error_code || 'INFERENCE_FAILED';
+        } catch {}
+        return res.status(mlRes.status).json({
+          error_code: errorCode,
+          error: typeof parsedDetail === 'string' ? parsedDetail : 'AI microservice error',
+          details: errorText,
+          status: 'error'
+        });
       }
     } catch (mlErr: any) {
       console.error(`[ML-Service] Microservice connection failed (${mlErr.message})`);
       return res.status(503).json({
-        error: 'AI Deep Learning Engine is currently offline or loading. Please ensure the ML microservice on port 5001 is active.',
-        details: mlErr.message
+        error_code: 'BACKEND_UNAVAILABLE',
+        error: 'AI Deep Learning Engine is currently offline or loading.',
+        details: `Connection to Python ML microservice at ${ML_SERVICE_URL} failed: ${mlErr.message}. Please ensure the ML microservice on port 5001 is active.`,
+        status: 'error'
       });
     }
 
     // 1. Image Quality Rejection Check
     if (mlData.status === 'REJECTED_QUALITY') {
       return res.status(422).json({
+        error_code: 'INVALID_IMAGE',
         status: 'REJECTED_QUALITY',
         title: 'IMAGE QUALITY TOO LOW',
         message: 'Please capture another image.',
@@ -2374,7 +2389,7 @@ app.post(['/api/ai/analyze', '/api/v1/analyze', '/api/ai/waste/analyze', '/api/v
         title: 'NOT A FOOD ITEM',
         detected_item: mlData.detected_item || mlData.displayName || 'Non-Food Item',
         category: mlData.category || 'Non-Food Material',
-        message: mlData.message || 'Item detected is not a food item. Please switch to Waste Classification mode.',
+        message: mlData.message || 'Item detected is not an edible food item. Plastic, metal, glass, paper, and electronic items cannot be evaluated for food freshness.',
         recommendation: mlData.recommendation || 'Switch to Waste Classification mode for recyclable and waste segregation.',
         confidence: mlData.confidence_score || 0,
         confidence_pct: mlData.confidence || '0%',
@@ -2390,7 +2405,7 @@ app.post(['/api/ai/analyze', '/api/v1/analyze', '/api/ai/waste/analyze', '/api/v
         detected_item: mlData.detected_item || 'Organic Food Waste',
         category: mlData.category || 'Food / Organic',
         waste_group: mlData.waste_group || 'Biodegradable',
-        message: mlData.message || 'Freshness model not currently trained for this food category.',
+        message: mlData.message || 'Freshness model is strictly trained on whole apples, bananas, and oranges.',
         recommendation: mlData.recommendation || 'Route to organic composting if spoiled, or verify suitability manually.',
         confidence: mlData.confidence_score || 0,
         confidence_pct: mlData.confidence || '0%',
@@ -2398,16 +2413,17 @@ app.post(['/api/ai/analyze', '/api/v1/analyze', '/api/ai/waste/analyze', '/api/v
       });
     }
 
-    // 4. Low Confidence / Uncertain / Unknown Object Check
-    if (mlData.status === 'UNCERTAIN' || mlData.status === 'UNKNOWN') {
+    // 4. Low Confidence / Uncertain / Unknown Object Check (Step 8)
+    if (mlData.status === 'uncertain' || mlData.status === 'UNCERTAIN' || mlData.status === 'UNKNOWN' || mlData.status === 'LOW_CONFIDENCE') {
       return res.json({
-        status: 'UNCERTAIN_RESULT',
-        title: 'UNKNOWN / UNSUPPORTED',
-        result: 'Unknown / Unsupported',
-        message: mlData.message || 'The AI could not reliably classify this item.',
+        error_code: 'LOW_CONFIDENCE',
+        status: 'uncertain',
+        title: 'UNKNOWN / UNCERTAIN',
+        result: 'Unknown / Uncertain',
+        message: mlData.message || 'Object could not be reliably classified.',
         confidence: mlData.confidence_score !== undefined ? mlData.confidence_score : 0,
         confidence_pct: mlData.confidence || `${Math.round((mlData.confidence_score || 0) * 100)}%`,
-        model_version: mlData.model || 'Deep Learning Ensemble',
+        model_version: mlData.model || 'FoodCovering AI Vision Classifier',
         suggestions: [
           'Use better lighting',
           'Move closer to the item',

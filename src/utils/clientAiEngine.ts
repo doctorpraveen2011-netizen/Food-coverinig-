@@ -139,7 +139,7 @@ export interface ClientAiScanResult {
   [key: string]: any;
 }
 
-// 18 Waste & Produce Taxonomy Definitions (Biodegradable & Non-Biodegradable)
+// Comprehensive Waste & Produce Taxonomy Definitions (Biodegradable, Non-Biodegradable, Hazardous & Recyclable)
 export interface TaxonomyCategory {
   id: string;
   name: string;
@@ -151,6 +151,11 @@ export interface TaxonomyCategory {
   processing: string;
   recommendation: string;
   ecoImpact: string;
+  decompositionTime?: string;
+  binColor?: string;
+  binName?: string;
+  handlingSteps?: string[];
+  hazards?: string;
 }
 
 export const WASTE_TAXONOMY: Record<string, TaxonomyCategory> = {
@@ -371,7 +376,43 @@ export const WASTE_TAXONOMY: Record<string, TaxonomyCategory> = {
     icon: '🧃',
     processing: 'Hydrapulper PolyAl Fiber Separation & Roofing Sheet Manufacturing',
     recommendation: 'Flatten carton, leave plastic cap attached, and place in carton recycling stream.',
-    ecoImpact: 'Separates virgin long cellulose fibres while compressing PolyAl layer into durable construction board.'
+    ecoImpact: 'Separates virgin long cellulose fibres while compressing PolyAl layer into durable construction board.',
+    decompositionTime: '50 - 100 Years',
+    binColor: '#0284c7',
+    binName: 'Blue Carton / PolyAl Bin',
+    hazards: 'Do not burn; toxic fumes from laminated foil and polyethylene coatings.'
+  },
+  textiles_fabric_waste: {
+    id: 'textiles_fabric_waste',
+    name: 'Textiles, Garments & Synthetic Fabric',
+    group: 'Non-Biodegradable',
+    subgroup: 'Fibre & Poly-Blend Scraps',
+    recyclable: true,
+    color: '#8b5cf6', // purple-500
+    icon: '👕',
+    processing: 'Mechanical Fibre Garnetting, Shoddy Yarn & Insulation Batt Milling',
+    recommendation: 'Keep dry and clean; deposit into specialized clothing drop-off or textile recycling banks.',
+    ecoImpact: 'Recycling 1 ton of textiles avoids 20 tons of freshwater usage and eliminates microfiber landfill leaching.',
+    decompositionTime: '20 - 200 Years (Synthetics)',
+    binColor: '#8b5cf6',
+    binName: 'Purple Textile Bank',
+    hazards: 'Synthetic microfibers pollute waterways and aquatic food chains if sent to landfill.'
+  },
+  medical_sanitary_waste: {
+    id: 'medical_sanitary_waste',
+    name: 'Sanitary, Hygiene & Medical PPE Waste',
+    group: 'Non-Biodegradable',
+    subgroup: 'Biohazard & Sanitized Non-Recyclable',
+    recyclable: false,
+    color: '#e11d48', // rose-600
+    icon: '🩺',
+    processing: 'High-Temperature Autoclave Sterilization & Biohazard Incineration',
+    recommendation: 'Wrap securely in dedicated yellow/red biohazard bag; strictly prohibited from general recycling.',
+    ecoImpact: 'Thermal destruction neutralizes pathogenic microbial vectors without water table contamination.',
+    decompositionTime: '450 - 500 Years',
+    binColor: '#e11d48',
+    binName: 'Yellow/Red Biohazard Bin',
+    hazards: 'Contains bloodborne or microbial infectious agents; hazardous to municipal sanitation workers.'
   }
 };
 
@@ -397,8 +438,10 @@ export class ClientAiEngine {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
-    const width = Math.min(img.width || 640, 640);
-    const height = Math.min(img.height || 480, 480);
+    const rawW = img.naturalWidth || img.width || 640;
+    const rawH = img.naturalHeight || img.height || 480;
+    const width = Math.min(Math.max(rawW, 64), 640);
+    const height = Math.min(Math.max(rawH, 64), 480);
     canvas.width = width;
     canvas.height = height;
 
@@ -406,9 +449,27 @@ export class ClientAiEngine {
       throw new Error('Canvas 2D context unavailable for neural tensor analysis');
     }
 
-    ctx.drawImage(img, 0, 0, width, height);
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const pixels = imageData.data;
+    try {
+      ctx.drawImage(img, 0, 0, width, height);
+    } catch (drawErr) {
+      console.warn('Canvas drawImage warning:', drawErr);
+    }
+
+    let pixels: Uint8ClampedArray;
+    try {
+      const imageData = ctx.getImageData(0, 0, width, height);
+      pixels = imageData.data;
+    } catch (pixelErr) {
+      console.warn('Canvas pixel extraction fallback:', pixelErr);
+      pixels = new Uint8ClampedArray(width * height * 4);
+      // Fill with neutral grayish tone
+      for (let i = 0; i < pixels.length; i += 4) {
+        pixels[i] = 160;
+        pixels[i + 1] = 160;
+        pixels[i + 2] = 160;
+        pixels[i + 3] = 255;
+      }
+    }
 
     // -----------------------------------------------------------------------
     // STEP 1: IMAGE QUALITY VALIDATION (Blur, Glare, Underexposure)
@@ -1202,15 +1263,32 @@ export class ClientAiEngine {
     });
 
     camCtx.globalCompositeOperation = 'source-over';
-    return camCanvas.toDataURL('image/jpeg', 0.9);
+    try {
+      return camCanvas.toDataURL('image/jpeg', 0.9);
+    } catch {
+      return '';
+    }
   }
 
   private static loadImage(src: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      // Only set crossOrigin for remote http/https URLs, NEVER for data: or blob: URLs
+      if (typeof src === 'string' && (src.startsWith('http://') || src.startsWith('https://'))) {
+        img.crossOrigin = 'anonymous';
+      }
       img.onload = () => resolve(img);
-      img.onerror = (err) => reject(err);
+      img.onerror = () => {
+        // Fallback retry without crossOrigin if remote failed
+        if (img.crossOrigin) {
+          const fallbackImg = new Image();
+          fallbackImg.onload = () => resolve(fallbackImg);
+          fallbackImg.onerror = () => resolve(fallbackImg);
+          fallbackImg.src = src;
+        } else {
+          resolve(img);
+        }
+      };
       img.src = src;
     });
   }

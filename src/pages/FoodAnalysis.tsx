@@ -255,16 +255,9 @@ export default function FoodAnalysis() {
         if (clientResult.gradcam_image) {
           setActiveViewMode('gradcam');
         }
-      } catch (clientErr) {
-        console.error('Client AI inference error:', clientErr);
-        setResult({
-          food: 'Fresh Organic Produce',
-          freshness: 'Fresh',
-          risk: 'Low',
-          confidence: '96.2%',
-          shelfLife: '4-6 days',
-          recommendation: 'Safe for consumption and direct surplus donation.'
-        });
+      } catch (clientErr: any) {
+        console.error('[REAL INFERENCE ERROR]', clientErr);
+        setSyncNotice(`Inference failed: ${clientErr?.message || 'Unable to classify image.'}`);
       }
     } finally {
       setIsAnalyzing(false);

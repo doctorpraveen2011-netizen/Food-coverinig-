@@ -327,32 +327,62 @@ class WasteClassifier:
         if not weights_path.exists():
             weights_path = MODELS_DIR / "waste_classifier_best.pth"
 
+        if not weights_path.exists():
+            print("Waste model loaded: false")
+            print(f"Model path: {weights_path}")
+            print("Architecture: MobileNetV3-Large")
+            print(f"Device: {str(self.device).upper()}")
+            raise FileNotFoundError(f"[CRITICAL] Waste model checkpoint missing: {weights_path}")
+
         model = models.mobilenet_v3_large(weights=None)
         in_features = model.classifier[3].in_features
         model.classifier[3] = nn.Sequential(
             nn.Dropout(p=0.25),
             nn.Linear(in_features, len(self.classes))
         )
-        if weights_path.exists():
-            model.load_state_dict(torch.load(weights_path, map_location=self.device))
-            print(f"[WasteClassifier] Loaded weights: {weights_path.name} ({len(self.classes)} classes)")
-        else:
-            print(f"[WasteClassifier] Warning: {weights_path} not found.")
+
+        try:
+            state_dict = torch.load(weights_path, map_location=self.device)
+            model.load_state_dict(state_dict)
+        except Exception as e:
+            print("Waste model loaded: false")
+            print(f"Model path: {weights_path}")
+            print("Architecture: MobileNetV3-Large")
+            raise RuntimeError(f"[CRITICAL] Waste model checkpoint is incompatible: {e}")
+
+        num_outputs = model.classifier[3][1].out_features
+        num_labels = len(self.classes)
+        if num_outputs != num_labels:
+            print("Waste model loaded: false")
+            print(f"Number of outputs: {num_outputs}")
+            print(f"Number of labels: {num_labels}")
+            raise ValueError(f"[CRITICAL] Label count ({num_labels}) != output count ({num_outputs}) for Waste model!")
 
         model = model.to(self.device)
         model.eval()
         self.model = model
         self.gradcam = GradCAM(self.model, model.features[-1])
 
-    def predict(self, pil_img: Image.Image) -> Dict[str, Any]:
-        tensor_img = self.prep_transform(pil_img.convert("RGB")).unsqueeze(0).to(self.device)
+        device_str = "CUDA" if "cuda" in str(self.device).lower() else "CPU"
+        print("Waste model loaded: true")
+        print(f"Model path: {weights_path}")
+        print("Architecture: MobileNetV3-Large")
+        print(f"Device: {device_str}")
+        print(f"Number of outputs: {num_outputs}")
+        print(f"Number of labels: {num_labels}")
 
-        with torch.enable_grad():
-            tensor_img.requires_grad = True
+    def predict(self, pil_img: Image.Image) -> Dict[str, Any]:
+        rgb_img = pil_img.convert("RGB")
+        tensor_img = self.prep_transform(rgb_img).unsqueeze(0).to(self.device)
+        assert tensor_img.shape == (1, 3, INPUT_SIZE, INPUT_SIZE), f"Expected tensor shape [1, 3, {INPUT_SIZE}, {INPUT_SIZE}], got {tensor_img.shape}"
+        assert tensor_img.device == self.device, f"Tensor on {tensor_img.device} != model on {self.device}"
+
+        self.model.eval()
+        with torch.inference_mode():
             outputs = self.model(tensor_img)
             probs = torch.softmax(outputs, dim=1).squeeze(0)
 
-        probs_np = probs.detach().cpu().numpy()
+        probs_np = probs.cpu().numpy()
         pred_idx = int(np.argmax(probs_np))
         pred_class = self.classes[pred_idx]
         confidence_val = float(probs_np[pred_idx])
@@ -386,10 +416,11 @@ class WasteClassifier:
         non_bio_prob = sum(prob_dict.get(c, 0.0) for c in non_bio_classes)
         is_biodegradable = bio_prob >= non_bio_prob
 
-        # Uncertainty Policy: Below threshold or insufficient margin -> Return UNCERTAIN
+        # Uncertainty Policy (Step 8): Below threshold or insufficient margin -> Return uncertain status
         if confidence_val < self.uncertainty_threshold or (confidence_val < 0.55 and margin < self.margin_threshold):
             return {
-                "status": "UNCERTAIN",
+                "status": "uncertain",
+                "message": "Object could not be reliably classified.",
                 "mode": "waste",
                 "food": "Unknown / Unsupported Item",
                 "displayName": "Unknown / Unsupported Item",
@@ -402,8 +433,8 @@ class WasteClassifier:
                 "confidence_score": round(confidence_val, 4),
                 "probabilities": prob_dict,
                 "top_predictions": top_preds,
-                "recommendation": "The AI model could not classify this item with sufficient confidence.",
-                "explanation": f"Top class '{top_preds[0]['displayName']}' scored only {top_preds[0]['confidence_pct']}, below the 45% confidence threshold.",
+                "recommendation": "Object could not be reliably classified. Manual inspection or clearer capture recommended.",
+                "explanation": f"Top class '{top_preds[0]['displayName']}' scored only {top_preds[0]['confidence_pct']}, below the {int(self.uncertainty_threshold*100)}% reliability threshold.",
                 "suggestions": [
                     "Ensure the item is placed under adequate lighting",
                     "Center the object directly in the frame",
@@ -414,8 +445,14 @@ class WasteClassifier:
                 "supported": False
             }
 
-        cam_map = self.gradcam.generate_heatmap(tensor_img, pred_idx)
-        gradcam_b64 = generate_gradcam_overlay(pil_img, cam_map)
+        gradcam_b64 = ""
+        try:
+            with torch.enable_grad():
+                grad_tensor = tensor_img.clone().detach().requires_grad_(True)
+                cam_map = self.gradcam.generate_heatmap(grad_tensor, pred_idx)
+                gradcam_b64 = generate_gradcam_overlay(pil_img, cam_map)
+        except Exception as cam_err:
+            pass
 
         meta = self.taxonomy.get(pred_class, {
             "displayName": pred_class.replace("_", " ").title(),
@@ -505,32 +542,62 @@ class FreshnessClassifier:
         if not weights_path.exists():
             weights_path = MODELS_DIR / "efficientnet_b0_best.pth"
 
+        if not weights_path.exists():
+            print("Freshness model loaded: false")
+            print(f"Model path: {weights_path}")
+            print("Architecture: EfficientNet-B0")
+            print(f"Device: {str(self.device).upper()}")
+            raise FileNotFoundError(f"[CRITICAL] Freshness model checkpoint missing: {weights_path}")
+
         model = models.efficientnet_b0(weights=None)
         in_features = model.classifier[1].in_features
         model.classifier = nn.Sequential(
             nn.Dropout(p=0.3, inplace=True),
             nn.Linear(in_features, len(self.classes))
         )
-        if weights_path.exists():
-            model.load_state_dict(torch.load(weights_path, map_location=self.device))
-            print(f"[FreshnessClassifier] Loaded weights: {weights_path.name} ({len(self.classes)} classes)")
-        else:
-            print(f"[FreshnessClassifier] Warning: {weights_path} not found.")
+
+        try:
+            state_dict = torch.load(weights_path, map_location=self.device)
+            model.load_state_dict(state_dict)
+        except Exception as e:
+            print("Freshness model loaded: false")
+            print(f"Model path: {weights_path}")
+            print("Architecture: EfficientNet-B0")
+            raise RuntimeError(f"[CRITICAL] Freshness model checkpoint is incompatible: {e}")
+
+        num_outputs = model.classifier[1].out_features
+        num_labels = len(self.classes)
+        if num_outputs != num_labels:
+            print("Freshness model loaded: false")
+            print(f"Number of outputs: {num_outputs}")
+            print(f"Number of labels: {num_labels}")
+            raise ValueError(f"[CRITICAL] Label count ({num_labels}) != output count ({num_outputs}) for Freshness model!")
 
         model = model.to(self.device)
         model.eval()
         self.model = model
         self.gradcam = GradCAM(self.model, model.features[-1])
 
-    def predict(self, pil_img: Image.Image) -> Dict[str, Any]:
-        tensor_img = self.prep_transform(pil_img.convert("RGB")).unsqueeze(0).to(self.device)
+        device_str = "CUDA" if "cuda" in str(self.device).lower() else "CPU"
+        print("Freshness model loaded: true")
+        print(f"Model path: {weights_path}")
+        print("Architecture: EfficientNet-B0")
+        print(f"Device: {device_str}")
+        print(f"Number of outputs: {num_outputs}")
+        print(f"Number of labels: {num_labels}")
 
-        with torch.enable_grad():
-            tensor_img.requires_grad = True
+    def predict(self, pil_img: Image.Image) -> Dict[str, Any]:
+        rgb_img = pil_img.convert("RGB")
+        tensor_img = self.prep_transform(rgb_img).unsqueeze(0).to(self.device)
+        assert tensor_img.shape == (1, 3, INPUT_SIZE, INPUT_SIZE), f"Expected tensor shape [1, 3, {INPUT_SIZE}, {INPUT_SIZE}], got {tensor_img.shape}"
+        assert tensor_img.device == self.device, f"Tensor on {tensor_img.device} != model on {self.device}"
+
+        self.model.eval()
+        with torch.inference_mode():
             outputs = self.model(tensor_img)
             probs = torch.softmax(outputs, dim=1).squeeze(0)
 
-        probs_np = probs.detach().cpu().numpy()
+        probs_np = probs.cpu().numpy()
         pred_idx = int(np.argmax(probs_np))
         pred_class = self.classes[pred_idx]
         confidence_val = float(probs_np[pred_idx])
@@ -557,7 +624,8 @@ class FreshnessClassifier:
 
         if confidence_val < self.uncertainty_threshold:
             return {
-                "status": "UNCERTAIN",
+                "status": "uncertain",
+                "message": "Object could not be reliably classified.",
                 "mode": "freshness",
                 "food": "Unknown Food Item",
                 "displayName": "Unknown Food Item",
@@ -574,14 +642,20 @@ class FreshnessClassifier:
                 "fresh_probability": round(fresh_prob, 4),
                 "spoiled_probability": round(spoiled_prob, 4),
                 "shelfLife": "Verify Physically",
-                "recommendation": "The AI could not reliably determine freshness for this specimen.",
-                "explanation": f"Confidence was {round(confidence_val*100, 1)}%, which is below the 50% threshold for fresh food safety.",
+                "recommendation": "Object could not be reliably classified. Confidence below freshness threshold.",
+                "explanation": f"Confidence was {round(confidence_val*100, 1)}%, which is below the {int(self.uncertainty_threshold*100)}% threshold for fresh food safety.",
                 "model": "EfficientNet-B0 (Freshness Classifier)",
                 "supported": False
             }
 
-        cam_map = self.gradcam.generate_heatmap(tensor_img, pred_idx)
-        gradcam_b64 = generate_gradcam_overlay(pil_img, cam_map)
+        gradcam_b64 = ""
+        try:
+            with torch.enable_grad():
+                grad_tensor = tensor_img.clone().detach().requires_grad_(True)
+                cam_map = self.gradcam.generate_heatmap(grad_tensor, pred_idx)
+                gradcam_b64 = generate_gradcam_overlay(pil_img, cam_map)
+        except Exception as cam_err:
+            pass
 
         meta = FRUIT_META.get(pred_class, {
             "item": pred_class.replace("fresh", "Fresh ").replace("rotten", "Spoiled ").title(),
@@ -817,23 +891,26 @@ class AIRouter:
             vision_res["gradcam_image"] = waste_single.get("gradcam_image")
             return vision_res
 
-        # Low confidence -> Flag as LOW_CONFIDENCE / UNCERTAIN
+        # Low confidence -> Flag as status "uncertain" (Step 8)
         waste_single = self.waste_classifier.predict(pil_img)
+        actual_conf = primary_obj.get("confidence") or waste_single.get("confidence_score") or 0.0
+        actual_pct = f"{round(float(actual_conf) * 100, 1)}%" if actual_conf > 0 else "0.0%"
         return {
-            "status": "LOW_CONFIDENCE",
+            "status": "uncertain",
+            "message": "Object could not be reliably classified.",
             "mode": "auto",
             "detected_objects": vision_res.get("detected_objects", []),
             "scene_summary": vision_res.get("scene_summary", {}),
             "food": primary_obj.get("label", "Unknown / Unsupported Item"),
-            "displayName": primary_obj.get("label", "Low Confidence Specimen"),
-            "item": primary_obj.get("label", "Low Confidence Specimen"),
+            "displayName": primary_obj.get("label", "Unknown / Uncertain Specimen"),
+            "item": primary_obj.get("label", "Unknown / Uncertain Specimen"),
             "category": primary_obj.get("category", "General Waste"),
             "waste_group": primary_obj.get("waste_group", "Unknown"),
-            "confidence": primary_obj.get("confidence_pct", "44.5%"),
-            "confidence_score": primary_obj.get("confidence", 0.445),
+            "confidence": actual_pct,
+            "confidence_score": round(float(actual_conf), 4),
             "top_predictions": waste_single.get("top_predictions", []),
-            "recommendation": "Prediction confidence is below reliable threshold. Manual review recommended prior to segregation.",
-            "explanation": "Visual features did not match any trained category with sufficient certainty. Do not assume definitive classification.",
+            "recommendation": "Object could not be reliably classified. Manual review recommended prior to segregation.",
+            "explanation": "Prediction confidence is below the validation-calibrated reliability threshold.",
             "suggestions": [
                 "Place specimen against an uncluttered, contrasting background",
                 "Ensure bright, even illumination across the object",

@@ -146,6 +146,7 @@ export default function AiFoodWasteScan() {
   const [result, setResult] = useState<any>(null);
   const [errorState, setErrorState] = useState<{
     type: 'quality' | 'uncertain' | 'server';
+    code?: 'MODEL_NOT_LOADED' | 'INVALID_IMAGE' | 'UNSUPPORTED_FORMAT' | 'INFERENCE_FAILED' | 'LOW_CONFIDENCE' | 'BACKEND_UNAVAILABLE' | string;
     title: string;
     message: string;
     details?: any;
@@ -696,8 +697,16 @@ export default function AiFoodWasteScan() {
         } : undefined
       };
 
-      useAnalysisStore.getState().addAnalysis(scanItem);
-      await fetchStatsAndHistory();
+      try {
+        useAnalysisStore.getState().addAnalysis(scanItem);
+      } catch (storeErr) {
+        console.warn('Analysis store save warning:', storeErr);
+      }
+      try {
+        await fetchStatsAndHistory();
+      } catch (statsErr) {
+        console.warn('Stats sync warning:', statsErr);
+      }
     };
 
     try {
@@ -718,20 +727,108 @@ export default function AiFoodWasteScan() {
               userId: user?.id,
               userName: user?.fullName
             }),
-            signal: AbortSignal.timeout(6000)
+            signal: AbortSignal.timeout(15000)
           });
 
           if (res.ok) {
             const data = await res.json();
-            await recordAndSync(data);
+            // Check for explicit UNCERTAIN / LOW CONFIDENCE status
+            if (data.status === 'uncertain' || data.status === 'UNCERTAIN_RESULT' || data.error_code === 'LOW_CONFIDENCE') {
+              setErrorState({
+                type: 'uncertain',
+                code: 'LOW_CONFIDENCE',
+                title: 'UNKNOWN / UNCERTAIN OBJECT',
+                message: data.message || 'Object could not be reliably classified.',
+                suggestions: data.suggestions || [
+                  'Use better diffused lighting',
+                  'Move closer to the specimen',
+                  'Keep the object centered in the frame',
+                  'Capture against an uncluttered, contrasting background'
+                ]
+              });
+              return;
+            }
+
+            // Check for NOT A FOOD rejection in freshness mode
+            if (data.status === 'NOT_A_FOOD') {
+              setErrorState({
+                type: 'uncertain',
+                code: 'LOW_CONFIDENCE',
+                title: 'NOT A FOOD ITEM',
+                message: data.message || 'Item detected is not an edible food item. Plastic, metal, glass, paper, and electronic items cannot be evaluated for food freshness.',
+                suggestions: [
+                  'Switch mode to "Waste Classification" in the top bar to classify recyclable materials.',
+                  'For freshness assessment, upload an image of whole produce (e.g., Apple, Banana, Orange).'
+                ]
+              });
+              return;
+            }
+
+            // Check for UNSUPPORTED FOOD in freshness mode
+            if (data.status === 'UNSUPPORTED_FOOD') {
+              setErrorState({
+                type: 'uncertain',
+                code: 'LOW_CONFIDENCE',
+                title: 'UNSUPPORTED FOOD CATEGORY',
+                message: data.message || 'Freshness model is strictly trained on whole apples, bananas, and oranges.',
+                suggestions: [
+                  'If food is cooked meals or plate leftovers, route directly to organic composting.',
+                  'For freshness assessment, upload whole apples, bananas, or oranges.'
+                ]
+              });
+              return;
+            }
+
+            if (data && (data.detected_food || data.detected_class || data.display_name || data.prediction)) {
+              await recordAndSync(data);
+              return;
+            }
+          } else {
+            // Backend returned 4xx or 5xx: extract real exception
+            const errData = await res.json().catch(() => ({}));
+            const errCode = errData?.error_code || (res.status === 503 ? 'BACKEND_UNAVAILABLE' : res.status === 415 ? 'UNSUPPORTED_FORMAT' : 'INFERENCE_FAILED');
+            const errMsg = errData?.error || errData?.message || `Inference server returned status ${res.status}`;
+            const errDetails = errData?.details || '';
+            console.error('[REAL BACKEND EXCEPTION]', errCode, errMsg, errDetails);
+            setErrorState({
+              type: 'server',
+              code: errCode,
+              title: errCode === 'BACKEND_UNAVAILABLE' ? 'BACKEND SERVICE UNAVAILABLE'
+                   : errCode === 'MODEL_NOT_LOADED' ? 'AI MODEL NOT LOADED'
+                   : errCode === 'UNSUPPORTED_FORMAT' ? 'UNSUPPORTED IMAGE FORMAT'
+                   : errCode === 'INVALID_IMAGE' ? 'INVALID IMAGE FILE'
+                   : 'INFERENCE FAILED',
+              message: errMsg,
+              details: errDetails,
+              suggestions: errCode === 'BACKEND_UNAVAILABLE' ? [
+                'Ensure Python PyTorch ML service on port 5001 is active: python ml/serve.py',
+                'Ensure Node server on port 5000 is active: npm run server'
+              ] : errCode === 'UNSUPPORTED_FORMAT' ? [
+                'Accepted image formats: JPEG, JPG, PNG, WEBP.'
+              ] : [
+                'Check backend terminal logs on port 5000 / 5001 for traceback details.'
+              ]
+            });
             return;
           }
-        } catch (serverErr) {
-          console.warn('Custom backend unreachable, falling back to on-device neural engine:', serverErr);
+        } catch (serverErr: any) {
+          console.error('[REAL BACKEND CONNECTION ERROR]', serverErr);
+          setErrorState({
+            type: 'server',
+            code: 'BACKEND_UNAVAILABLE',
+            title: 'BACKEND SERVICE UNAVAILABLE',
+            message: `Could not connect to backend at ${backendUrl}: ${serverErr?.message || serverErr}`,
+            details: String(serverErr),
+            suggestions: [
+              'Ensure Node backend on port 5000 is running (npm run server)',
+              'Ensure PyTorch ML service on port 5001 is running (python ml/serve.py)'
+            ]
+          });
+          return;
         }
       }
 
-      // 2. High-Precision On-Device Dense Spatial "Inch-by-Inch" Neural Engine
+      // 2. High-Precision On-Device Dense Spatial Neural Engine (Only when no backend is configured, e.g. GitHub Pages)
       const clientResult = await ClientAiEngine.analyze(targetImage, {
         mode: targetMode,
         source: captureSource,
@@ -741,6 +838,7 @@ export default function AiFoodWasteScan() {
       if (clientResult.status === 'REJECTED_QUALITY') {
         setErrorState({
           type: 'quality',
+          code: 'INVALID_IMAGE',
           title: 'IMAGE QUALITY TOO LOW',
           message: clientResult.recommendation || 'Please capture another image with clearer lighting.',
           details: clientResult.quality_details,
@@ -756,6 +854,7 @@ export default function AiFoodWasteScan() {
       if (clientResult.status === 'NOT_A_FOOD') {
         setErrorState({
           type: 'uncertain',
+          code: 'LOW_CONFIDENCE',
           title: 'NOT A FOOD ITEM',
           message: clientResult.recommendation || 'Item detected is not an edible food item. Please switch to Waste Classification mode.',
           suggestions: clientResult.suggestions || [
@@ -766,11 +865,12 @@ export default function AiFoodWasteScan() {
         return;
       }
 
-      if (clientResult.status === 'UNCERTAIN_RESULT') {
+      if (clientResult.status === 'UNCERTAIN_RESULT' || clientResult.status === 'LOW_CONFIDENCE') {
         setErrorState({
           type: 'uncertain',
-          title: 'UNKNOWN / UNSUPPORTED ITEM',
-          message: clientResult.recommendation || 'The AI could not reliably classify this item.',
+          code: 'LOW_CONFIDENCE',
+          title: 'UNKNOWN / UNCERTAIN OBJECT',
+          message: clientResult.recommendation || 'Object could not be reliably classified.',
           suggestions: clientResult.suggestions || [
             'Use better diffused lighting',
             'Move closer to the specimen',
@@ -782,12 +882,17 @@ export default function AiFoodWasteScan() {
 
       await recordAndSync(clientResult);
     } catch (clientErr: any) {
-      console.error('AI inference error:', clientErr);
-      setResult(null);
+      console.error('[REAL INFERENCE EXCEPTION]', clientErr);
       setErrorState({
         type: 'server',
-        title: 'INFERENCE ERROR',
-        message: 'Unable to analyze image. Please ensure good lighting and try again.'
+        code: 'INFERENCE_FAILED',
+        title: 'INFERENCE FAILED',
+        message: clientErr?.message || 'Unexpected failure during neural tensor inference.',
+        details: clientErr?.stack || String(clientErr),
+        suggestions: [
+          'Verify image file format and dimensions',
+          'Inspect console output for full stack trace'
+        ]
       });
     } finally {
       setIsAnalyzing(false);
@@ -1631,23 +1736,58 @@ export default function AiFoodWasteScan() {
             </div>
           )}
 
-          {/* D. Server Error Card */}
+          {/* D. Server Error / Exception Card */}
           {errorState?.type === 'server' && !result && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-              <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
+            <div className="bg-white rounded-2xl border border-rose-200 p-6 shadow-xs">
+              <div className="flex items-start gap-3 mb-4 pb-3 border-b border-rose-100">
+                <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
                   <AlertCircle className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="text-base font-black text-slate-900">{errorState.title}</h3>
-                  <p className="text-xs text-slate-600 font-medium">{errorState.message}</p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <h3 className="text-base font-black text-rose-950">{errorState.title}</h3>
+                    {errorState.code && (
+                      <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 text-[10px] font-mono font-bold uppercase tracking-wider border border-rose-200">
+                        {errorState.code}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-rose-800 font-medium">{errorState.message}</p>
                 </div>
               </div>
+
+              {/* Suggestions */}
+              {errorState.suggestions && errorState.suggestions.length > 0 && (
+                <div className="bg-slate-50 rounded-xl p-3 mb-4 text-xs text-slate-700 space-y-1.5 border border-slate-200">
+                  <div className="font-semibold text-slate-800">Troubleshooting Steps:</div>
+                  {errorState.suggestions.map((sug, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
+                      <span>{sug}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Technical Traceback / Details if available */}
+              {errorState.details && (
+                <div className="mb-4">
+                  <details className="text-xs bg-slate-900 text-slate-200 rounded-xl p-3 border border-slate-800 font-mono">
+                    <summary className="cursor-pointer font-bold text-slate-400 hover:text-white select-none">
+                      Technical Exception Details
+                    </summary>
+                    <pre className="mt-2 text-[11px] whitespace-pre-wrap overflow-x-auto text-rose-300">
+                      {typeof errorState.details === 'string' ? errorState.details : JSON.stringify(errorState.details, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={selectedImage ? () => handleAnalyzeImage() : handleReset}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition-colors"
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors cursor-pointer"
                 >
                   {selectedImage ? 'Retry Analysis' : 'Try Again'}
                 </button>
@@ -1655,7 +1795,7 @@ export default function AiFoodWasteScan() {
                   <button
                     type="button"
                     onClick={handleReset}
-                    className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+                    className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
                   >
                     Clear Image
                   </button>

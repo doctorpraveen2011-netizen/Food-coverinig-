@@ -88,28 +88,91 @@ def decode_image(image_input: str) -> Image.Image:
         else:
             image_data = image_input
         decoded_bytes = base64.b64decode(image_data)
-        img = Image.open(io.BytesIO(decoded_bytes)).convert("RGB")
+        raw_img = Image.open(io.BytesIO(decoded_bytes))
+        fmt = (raw_img.format or "").upper()
+        if fmt not in ["JPEG", "JPG", "PNG", "WEBP"]:
+            raise HTTPException(
+                status_code=415,
+                detail={
+                    "error_code": "UNSUPPORTED_FORMAT",
+                    "status": "error",
+                    "message": f"Unsupported image format '{fmt}'. Acceptable formats: JPEG, JPG, PNG, WEBP."
+                }
+            )
+        img = raw_img.convert("RGB")
         return img
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid base64 image data: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": "INVALID_IMAGE",
+                "status": "error",
+                "message": f"Unable to decode image data: {str(e)}"
+            }
+        )
 
 @app.post("/predict")
 async def predict_base64(req: Base64ImageRequest):
     if not req.image:
-        raise HTTPException(status_code=400, detail="No image provided")
-    img = decode_image(req.image)
-    result = analyzer.analyze(img, filename=req.filename, mode=req.mode)
-    return result
+        raise HTTPException(
+            status_code=400,
+            detail={"error_code": "INVALID_IMAGE", "message": "No image payload provided."}
+        )
+    try:
+        img = decode_image(req.image)
+        result = analyzer.analyze(img, filename=req.filename, mode=req.mode)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"[Inference Exception] {e}\n{tb}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_code": "INFERENCE_FAILED",
+                "status": "error",
+                "message": str(e),
+                "traceback": tb
+            }
+        )
 
 @app.post("/predict-file")
-async def predict_file(file: UploadFile = File(...), mode: str = Form("general")):
+async def predict_file(file: UploadFile = File(...), mode: str = Form("auto")):
     try:
         contents = await file.read()
-        img = Image.open(io.BytesIO(contents)).convert("RGB")
+        raw_img = Image.open(io.BytesIO(contents))
+        fmt = (raw_img.format or "").upper()
+        if fmt not in ["JPEG", "JPG", "PNG", "WEBP"]:
+            raise HTTPException(
+                status_code=415,
+                detail={
+                    "error_code": "UNSUPPORTED_FORMAT",
+                    "status": "error",
+                    "message": f"Unsupported image format '{fmt}'. Acceptable formats: JPEG, JPG, PNG, WEBP."
+                }
+            )
+        img = raw_img.convert("RGB")
         result = analyzer.analyze(img, filename=file.filename or "", mode=mode)
         return result
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to process image file: {str(e)}")
+        import traceback
+        tb = traceback.format_exc()
+        print(f"[Inference File Exception] {e}\n{tb}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_code": "INFERENCE_FAILED",
+                "status": "error",
+                "message": str(e),
+                "traceback": tb
+            }
+        )
 
 if __name__ == "__main__":
     import uvicorn
