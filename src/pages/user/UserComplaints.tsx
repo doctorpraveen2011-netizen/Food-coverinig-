@@ -206,7 +206,13 @@ export default function UserComplaints() {
       setFoodType(detectedCategory);
       setPriority(scan.risk === 'High' ? 'Critical' : 'High');
       setProblemType('Spoilage / Mold Detected');
-      setDescription(`[AI Freshness Scan Detection]: ${scan.food} flagged with ${scan.confidence} confidence. Spoilage Risk: ${scan.risk}. Recommendation: ${scan.recommendation || 'Unfit for human consumption.'}`);
+      const storeLandmark = scan.purchaseLandmark || location.state?.purchaseLandmark || 'FreshMart Supermarkets, Central Market';
+      const billNo = scan.billNumber || location.state?.billNumber || '';
+      setSeller(storeLandmark);
+      setPurchaseLocation(storeLandmark);
+      if (billNo) setBatchNumber(billNo);
+      if (scan.purchaseDate) setPurchaseDate(scan.purchaseDate);
+      setDescription(`[AI Freshness Scan Detection]: ${scan.food} flagged with ${scan.confidence} confidence. Spoilage Risk: ${scan.risk}. Purchased at: ${storeLandmark}${billNo ? ` (Bill #${billNo})` : ''}. Recommendation: ${scan.recommendation || 'Unfit for human consumption.'}`);
       const img = location.state?.uploadedImage || scan.imageUrl;
       if (img) {
         setEvidenceInput(img);

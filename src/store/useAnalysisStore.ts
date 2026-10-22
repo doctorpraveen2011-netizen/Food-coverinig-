@@ -32,6 +32,21 @@ export interface AnalyzedFood {
   sensor_telemetry?: any;
   bio_probability?: number;
   non_bio_probability?: number;
+  purchaseLandmark?: string;
+  billNumber?: string;
+  barcode?: string;
+  purchaseDate?: string;
+  scannedByRole?: string;
+  scannedByUserName?: string;
+  wasteStream?: 'Biodegradable' | 'Non-Biodegradable' | string;
+  wasteCategory?: string;
+  spatialSummary?: {
+    bioPct: number;
+    nonBioPct: number;
+    cellCount: number;
+    objectsDetected: number;
+  };
+  nextActionRecommended?: string;
 }
 
 interface AnalysisStore {

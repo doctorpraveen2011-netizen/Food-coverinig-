@@ -16,13 +16,19 @@ import {
   Clock, 
   ArrowRight,
   Flame,
-  Radio
+  Radio,
+  Sparkles,
+  MapPin,
+  Receipt,
+  Barcode
 } from 'lucide-react';
+import { useAnalysisStore, type AnalyzedFood } from '../../store/useAnalysisStore';
 
 export default function SupermarketDashboard() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
+  const localScans = useAnalysisStore((state) => state.history);
 
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -331,6 +337,122 @@ export default function SupermarketDashboard() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Connected AI Quality Audits & Citizen Scans Stream */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 mb-4 gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+              <Scan className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <span>Live Store AI Quality Audits & Citizen Scans Stream</span>
+                <span className="text-[10px] font-extrabold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                  {localScans.length} Scans Logged
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500">
+                Connected AI vision stream tracking store landmark receipts, batch barcodes, and waste classification.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/supermarket/ai-scan')}
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>New AI Food/Waste Scan</span>
+          </button>
+        </div>
+
+        {localScans.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+            {localScans.slice(0, 4).map((scan: AnalyzedFood) => {
+              const isSp = scan.freshness === 'Spoiled' || scan.risk === 'High';
+              const isMod = scan.freshness === 'Moderate' || scan.risk === 'Medium';
+              return (
+                <div key={scan.id} className="p-3.5 rounded-2xl border border-slate-200/80 bg-slate-50/60 hover:bg-white hover:shadow-xs transition-all flex flex-col justify-between">
+                  <div>
+                    {scan.imageUrl ? (
+                      <div className="w-full h-24 rounded-xl overflow-hidden bg-slate-900 mb-2 relative">
+                        <img src={scan.imageUrl} alt={scan.food} className="w-full h-full object-cover" />
+                        <span className={`absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
+                          isSp ? 'bg-rose-100 text-rose-800' : isMod ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                        }`}>
+                          {scan.freshness}
+                        </span>
+                        {scan.wasteStream && (
+                          <span className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-900/80 text-white backdrop-blur-md">
+                            {scan.wasteStream}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                          isSp ? 'bg-rose-100 text-rose-800' : isMod ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                        }`}>
+                          {scan.freshness}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono font-bold">{scan.confidence}</span>
+                      </div>
+                    )}
+
+                    <h4 className="text-xs font-bold text-slate-900 line-clamp-1">{scan.food}</h4>
+                    
+                    {scan.purchaseLandmark && (
+                      <div className="mt-1 flex items-center gap-1 text-[10px] text-blue-700 font-semibold truncate">
+                        <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
+                        <span className="truncate">{scan.purchaseLandmark}</span>
+                      </div>
+                    )}
+
+                    <div className="mt-1 flex items-center justify-between text-[9px] font-mono text-slate-500">
+                      <span>🧾 {scan.billNumber || 'BILL-AUTO'}</span>
+                      {scan.barcode && <span>🏷️ {scan.barcode.slice(-6)}</span>}
+                    </div>
+
+                    <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                      {scan.recommendation || 'Scanned and verified through FoodCovering deep learning engine.'}
+                    </p>
+                  </div>
+
+                  <div className="mt-3 pt-2.5 border-t border-slate-200/60 flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400">Shelf: {scan.shelfLife || 'Active'}</span>
+                    {isSp ? (
+                      <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded">
+                        Flagged for Quarantine
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => navigate('/supermarket/donations')}
+                        className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer flex items-center gap-1"
+                      >
+                        <Gift className="w-3 h-3" />
+                        <span>Accept Surplus</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+            <Scan className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-xs font-bold text-slate-700">No Store AI Scans In Stream Yet</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Scans made by citizens or store staff with this supermarket's landmark appear here automatically.</p>
+            <button
+              onClick={() => navigate('/supermarket/ai-scan')}
+              className="mt-3 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Launch Store AI Scanner</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Two columns: Store Surplus Donations & Store Complaints */}

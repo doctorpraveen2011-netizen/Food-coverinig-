@@ -196,8 +196,8 @@ export default function UserDonations() {
     const freshLevel = scan.freshness?.toLowerCase().includes('fresh') || scan.risk?.toLowerCase() === 'low'
       ? 'Good (Within 6 hrs)'
       : 'Consume within 12 hrs';
-    setFreshness(freshLevel);
-    setNotes(`AI Freshness Certified: ${scan.freshness || 'Verified'} | Risk: ${scan.risk || 'Low'} | Shelf-life: ${scan.shelfLife || '1-2 days'}`);
+    const provenanceInfo = scan.purchaseLandmark ? ` | Origin: ${scan.purchaseLandmark}${scan.billNumber ? ` (Bill #${scan.billNumber})` : ''}` : '';
+    setNotes(`AI Freshness Certified: ${scan.freshness || 'Verified'} | Risk: ${scan.risk || 'Low'} | Shelf-life: ${scan.shelfLife || '1-2 days'}${provenanceInfo}`);
     setIsFromAiScan(true);
     setMessage({
       type: 'success',

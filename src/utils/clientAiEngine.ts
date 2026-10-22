@@ -136,6 +136,11 @@ export interface ClientAiScanResult {
   suitable_facilities?: any[];
   quality_details?: any;
   suggestions?: string[];
+  purchase_landmark?: string;
+  bill_number?: string;
+  barcode?: string;
+  purchase_date?: string;
+  food_subcategory?: string;
   [key: string]: any;
 }
 
@@ -435,6 +440,22 @@ const IMAGENET_WASTE_MAP: Record<string, { category: string; confidenceBoost: nu
   'strawberry': { category: 'apple_produce_waste', confidenceBoost: 0.88, isFood: true },
   'pineapple': { category: 'citrus_fruit_waste', confidenceBoost: 0.88, isFood: true },
   'custard apple': { category: 'apple_produce_waste', confidenceBoost: 0.88, isFood: true },
+  'mango': { category: 'citrus_fruit_waste', confidenceBoost: 0.92, isFood: true },
+  'papaya': { category: 'citrus_fruit_waste', confidenceBoost: 0.90, isFood: true },
+  'guava': { category: 'apple_produce_waste', confidenceBoost: 0.90, isFood: true },
+  'watermelon': { category: 'apple_produce_waste', confidenceBoost: 0.90, isFood: true },
+  'melon': { category: 'citrus_fruit_waste', confidenceBoost: 0.90, isFood: true },
+  'cantaloupe': { category: 'citrus_fruit_waste', confidenceBoost: 0.90, isFood: true },
+  'grape': { category: 'apple_produce_waste', confidenceBoost: 0.90, isFood: true },
+  'pear': { category: 'apple_produce_waste', confidenceBoost: 0.92, isFood: true },
+  'peach': { category: 'citrus_fruit_waste', confidenceBoost: 0.90, isFood: true },
+  'plum': { category: 'apple_produce_waste', confidenceBoost: 0.90, isFood: true },
+  'cherry': { category: 'apple_produce_waste', confidenceBoost: 0.90, isFood: true },
+  'berry': { category: 'apple_produce_waste', confidenceBoost: 0.90, isFood: true },
+  'blueberry': { category: 'apple_produce_waste', confidenceBoost: 0.90, isFood: true },
+  'raspberry': { category: 'apple_produce_waste', confidenceBoost: 0.90, isFood: true },
+  'avocado': { category: 'vegetable_peels_greens', confidenceBoost: 0.90, isFood: true },
+  'coconut': { category: 'paper_cardboard_waste', confidenceBoost: 0.88, isFood: true },
 
   // Vegetables / Greens (Biodegradable)
   'broccoli': { category: 'vegetable_peels_greens', confidenceBoost: 0.95, isFood: true },
@@ -444,26 +465,68 @@ const IMAGENET_WASTE_MAP: Record<string, { category: string; confidenceBoost: nu
   'cucumber': { category: 'vegetable_peels_greens', confidenceBoost: 0.92, isFood: true },
   'zucchini': { category: 'vegetable_peels_greens', confidenceBoost: 0.92, isFood: true },
   'bell pepper': { category: 'vegetable_peels_greens', confidenceBoost: 0.92, isFood: true },
+  'pepper': { category: 'vegetable_peels_greens', confidenceBoost: 0.90, isFood: true },
   'artichoke': { category: 'vegetable_peels_greens', confidenceBoost: 0.88, isFood: true },
   'mushroom': { category: 'vegetable_peels_greens', confidenceBoost: 0.90, isFood: true },
   'corn': { category: 'vegetable_peels_greens', confidenceBoost: 0.90, isFood: true },
+  'ear of corn': { category: 'vegetable_peels_greens', confidenceBoost: 0.92, isFood: true },
+  'tomato': { category: 'apple_produce_waste', confidenceBoost: 0.92, isFood: true },
+  'potato': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  'sweet potato': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'carrot': { category: 'citrus_fruit_waste', confidenceBoost: 0.92, isFood: true },
+  'onion': { category: 'vegetable_peels_greens', confidenceBoost: 0.90, isFood: true },
+  'garlic': { category: 'vegetable_peels_greens', confidenceBoost: 0.90, isFood: true },
+  'ginger': { category: 'vegetable_peels_greens', confidenceBoost: 0.88, isFood: true },
+  'spinach': { category: 'vegetable_peels_greens', confidenceBoost: 0.92, isFood: true },
+  'lettuce': { category: 'vegetable_peels_greens', confidenceBoost: 0.92, isFood: true },
+  'kale': { category: 'vegetable_peels_greens', confidenceBoost: 0.92, isFood: true },
+  'eggplant': { category: 'vegetable_peels_greens', confidenceBoost: 0.90, isFood: true },
+  'pumpkin': { category: 'citrus_fruit_waste', confidenceBoost: 0.90, isFood: true },
+  'butternut squash': { category: 'citrus_fruit_waste', confidenceBoost: 0.90, isFood: true },
 
-  // Cooked / Prepared Food Scraps (Biodegradable)
+  // Cooked / Prepared Food Scraps & Bakery & Grains & Proteins (Biodegradable)
   'pizza': { category: 'organic_food_waste', confidenceBoost: 0.95, isFood: true },
   'potpie': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
   'burrito': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
   'cheeseburger': { category: 'organic_food_waste', confidenceBoost: 0.95, isFood: true },
+  'burger': { category: 'organic_food_waste', confidenceBoost: 0.95, isFood: true },
   'hotdog': { category: 'organic_food_waste', confidenceBoost: 0.95, isFood: true },
   'bagel': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
   'pretzel': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'sandwich': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
   'meatloaf': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'spaghetti': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'pasta': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'carbonara': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'noodle': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'ramen': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'french fries': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
   'bread': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'french loaf': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  'loaf': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'toast': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'croissant': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  'muffin': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'cake': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'pastry': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'doughnut': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  'donut': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
   'bakery': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'cookie': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'biscuit': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'rice': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  'fried rice': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  'curry': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  'soup': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'stew': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'roti': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  'chapati': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  'egg': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  'boiled egg': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  'cheese': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'chicken': { category: 'organic_food_waste', confidenceBoost: 0.92, isFood: true },
+  'fish': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
+  'salmon': { category: 'organic_food_waste', confidenceBoost: 0.90, isFood: true },
   'ice cream': { category: 'organic_food_waste', confidenceBoost: 0.85, isFood: true },
 
   // NON-BIODEGRADABLE: Plastic Bottles & Liquid Packaging
@@ -706,6 +769,10 @@ export class ClientAiEngine {
       source?: 'manual_upload' | 'camera_capture';
       filename?: string;
       sensor_override?: any;
+      purchase_landmark?: string;
+      bill_number?: string;
+      barcode?: string;
+      purchase_date?: string;
     } = {}
   ): Promise<ClientAiScanResult> {
     const requestedMode = options.mode || 'auto';
@@ -866,11 +933,11 @@ export class ClientAiEngine {
         { keywords: ['cloth', 'textile', 'fabric', 'shirt', 'sock', 'jean'], category: 'textiles_fabric_waste' },
         { keywords: ['mask', 'syringe', 'bandage', 'diaper', 'medical'], category: 'medical_sanitary_waste' },
         { keywords: ['banana'], category: 'banana_waste' },
-        { keywords: ['orange', 'citrus', 'lemon', 'lime'], category: 'citrus_fruit_waste' },
-        { keywords: ['apple'], category: 'apple_produce_waste' },
-        { keywords: ['vegetable', 'greens', 'lettuce', 'cabbage', 'cucumber'], category: 'vegetable_peels_greens' },
-        { keywords: ['leaf', 'garden', 'yard', 'foliage'], category: 'leaf_garden_waste' },
-        { keywords: ['food', 'cooked', 'leftover', 'meal', 'bread', 'pizza'], category: 'organic_food_waste' }
+        { keywords: ['orange', 'citrus', 'lemon', 'lime', 'mango', 'papaya', 'carrot', 'pumpkin'], category: 'citrus_fruit_waste' },
+        { keywords: ['apple', 'tomato', 'strawberry', 'grape', 'watermelon', 'berry', 'fruit'], category: 'apple_produce_waste' },
+        { keywords: ['vegetable', 'greens', 'lettuce', 'cabbage', 'cucumber', 'spinach', 'broccoli', 'onion', 'garlic'], category: 'vegetable_peels_greens' },
+        { keywords: ['leaf', 'garden', 'yard', 'foliage', 'plant'], category: 'leaf_garden_waste' },
+        { keywords: ['food', 'cooked', 'leftover', 'meal', 'bread', 'pizza', 'rice', 'curry', 'pasta', 'noodle', 'burger', 'bakery', 'cake', 'chicken', 'egg', 'fish', 'meat', 'potato', 'soup'], category: 'organic_food_waste' }
       ];
 
       for (const item of filenameKeywords) {
@@ -1241,7 +1308,11 @@ export class ClientAiEngine {
       bio_area_sq_in: finalBioArea,
       non_bio_area_sq_in: finalNonBioArea,
       eco_impact: primaryTaxonomy.ecoImpact,
-      sensor_telemetry: options.sensor_override ? options.sensor_override : undefined
+      sensor_telemetry: options.sensor_override ? options.sensor_override : undefined,
+      purchase_landmark: options.purchase_landmark,
+      bill_number: options.bill_number,
+      barcode: options.barcode,
+      purchase_date: options.purchase_date || new Date().toISOString().split('T')[0]
     };
 
     return result;

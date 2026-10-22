@@ -54,10 +54,26 @@ import {
   CheckCheck,
   Sliders,
   Maximize2,
-  Filter
+  Filter,
+  Receipt,
+  Store,
+  Barcode,
+  Navigation
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+
+export const SUPERMARKET_LANDMARKS = [
+  { name: 'Reliance Smart Supermarket - Anna Nagar', address: '2nd Avenue, Anna Nagar, Chennai', code: 'SM-101', gps: '13.0850° N, 80.2101° E' },
+  { name: 'FreshMart Hypermarket - T. Nagar', address: 'Usman Road, T. Nagar, Chennai', code: 'SM-102', gps: '13.0418° N, 80.2341° E' },
+  { name: "Spencer's Daily - Velachery", address: '100 Feet Road, Velachery, Chennai', code: 'SM-103', gps: '12.9815° N, 80.2180° E' },
+  { name: 'Nilgiris Supermarket - Adyar', address: 'LB Road, Adyar, Chennai', code: 'SM-104', gps: '13.0012° N, 80.2565° E' },
+  { name: 'More Megastore - Koyambedu', address: 'Poonamallee High Rd, Chennai', code: 'SM-105', gps: '13.0694° N, 80.1948° E' },
+  { name: "Organic Farmer's Mandi - Alwarpet", address: 'TTK Road, Alwarpet, Chennai', code: 'SM-106', gps: '13.0336° N, 80.2520° E' },
+  { name: 'Pazhamudir Nilayam - Mylapore', address: 'Luz Church Road, Mylapore, Chennai', code: 'SM-107', gps: '13.0368° N, 80.2676° E' },
+  { name: 'Local Community Kirana / Mandi', address: 'Neighborhood Store', code: 'SM-108', gps: 'Local Area' },
+  { name: 'Other / Custom Store...', address: 'Enter custom address', code: 'SM-CUSTOM', gps: 'Custom' }
+];
 import {
   ResponsiveContainer,
   BarChart,
@@ -177,6 +193,19 @@ export default function AiFoodWasteScan() {
   const [correctedCategory, setCorrectedCategory] = useState('food_waste');
   const [feedbackNotes, setFeedbackNotes] = useState('');
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
+  // Purchase Provenance & Traceability States (Landmark, Bill, Barcode)
+  const [purchaseLandmark, setPurchaseLandmark] = useState<string>('Reliance Smart Supermarket - Anna Nagar');
+  const [customLandmark, setCustomLandmark] = useState<string>('');
+  const [billNumber, setBillNumber] = useState<string>('BILL-2026-8941');
+  const [barcodeNumber, setBarcodeNumber] = useState<string>('8901030829141');
+  const [purchaseDate, setPurchaseDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [isProvenanceEditing, setIsProvenanceEditing] = useState<boolean>(false);
+  const [actionSyncToast, setActionSyncToast] = useState<string | null>(null);
+
+  const effectiveLandmark = purchaseLandmark === 'Other / Custom Store...'
+    ? (customLandmark || 'Custom Landmark Store')
+    : purchaseLandmark;
 
 
   const handleSendFeedback = async (isCorrect: boolean, corrected?: string, notes?: string) => {
@@ -694,7 +723,24 @@ export default function AiFoodWasteScan() {
           gasVoc: `${data.sensor_telemetry.ethylenePpm} ppm C2H4`,
           pH: `${data.sensor_telemetry.pH}`,
           gasVocColor: data.sensor_telemetry.gasVocColor || 'green'
-        } : undefined
+        } : undefined,
+        purchaseLandmark: effectiveLandmark,
+        billNumber: billNumber,
+        barcode: barcodeNumber,
+        purchaseDate: purchaseDate,
+        scannedByRole: user?.role || 'NORMAL_USER',
+        scannedByUserName: user?.fullName || 'Citizen User',
+        wasteStream: data.waste_group || (data.bio_percentage >= 50 ? 'Biodegradable' : 'Non-Biodegradable'),
+        wasteCategory: data.category || data.detected_class,
+        spatialSummary: {
+          bioPct: data.bio_percentage ?? 50,
+          nonBioPct: data.non_bio_percentage ?? 50,
+          cellCount: 64,
+          objectsDetected: data.detected_objects?.length || 1
+        },
+        nextActionRecommended: (freshnessVal === 'Fresh' || freshnessVal === 'Moderate')
+          ? 'DONATE_COMMUNITY'
+          : (data.waste_group === 'Biodegradable' ? 'CITY_COMPOSTING' : 'RECYCLING_MRF')
       };
 
       try {
@@ -832,7 +878,11 @@ export default function AiFoodWasteScan() {
       const clientResult = await ClientAiEngine.analyze(targetImage, {
         mode: targetMode,
         source: captureSource,
-        filename: targetFilename
+        filename: targetFilename,
+        purchase_landmark: effectiveLandmark,
+        bill_number: billNumber,
+        barcode: barcodeNumber,
+        purchase_date: purchaseDate
       });
 
       if (clientResult.status === 'REJECTED_QUALITY') {
@@ -1035,6 +1085,49 @@ export default function AiFoodWasteScan() {
     navigator.clipboard?.writeText(text);
     setCopiedDossier(true);
     setTimeout(() => setCopiedDossier(false), 2000);
+  };
+
+  // Synchronize purchase provenance updates across all three dashboards
+  const handleUpdateProvenance = () => {
+    if (!result) return;
+    const foodName = result.display_name || result.detected_food || result.detected_item || 'Scanned Item';
+    useAnalysisStore.getState().addAnalysis({
+      food: foodName,
+      displayName: foodName,
+      freshness: result.freshness || 'Fresh',
+      risk: result.risk || 'Low',
+      confidence: result.confidence_pct || '98%',
+      shelfLife: result.shelf_life || '3 days',
+      recommendation: result.recommendation || 'Verified via deep learning vision.',
+      imageUrl: selectedImage || undefined,
+      category: result.category,
+      degradability: result.waste_group,
+      gradcam_image: result.gradcam_image,
+      probabilities: result.probabilities,
+      mode: result.analysis_type,
+      bio_probability: result.bio_percentage,
+      non_bio_probability: result.non_bio_percentage,
+      purchaseLandmark: effectiveLandmark,
+      billNumber: billNumber,
+      barcode: barcodeNumber,
+      purchaseDate: purchaseDate,
+      scannedByRole: user?.role || 'NORMAL_USER',
+      scannedByUserName: user?.fullName || 'Citizen User',
+      wasteStream: result.waste_group || (result.bio_percentage >= 50 ? 'Biodegradable' : 'Non-Biodegradable'),
+      wasteCategory: result.category || result.detected_class,
+      spatialSummary: {
+        bioPct: result.bio_percentage ?? 50,
+        nonBioPct: result.non_bio_percentage ?? 50,
+        cellCount: 64,
+        objectsDetected: result.detected_objects?.length || 1
+      },
+      nextActionRecommended: (result.freshness === 'Fresh' || result.freshness === 'Moderate')
+        ? 'DONATE_COMMUNITY'
+        : (result.waste_group === 'Biodegradable' ? 'CITY_COMPOSTING' : 'RECYCLING_MRF')
+    });
+    setIsProvenanceEditing(false);
+    setActionSyncToast(`✓ Purchase Landmark (${effectiveLandmark}) & Bill #${billNumber} synchronized to all 3 Dashboards!`);
+    setTimeout(() => setActionSyncToast(null), 4000);
   };
 
   return (
@@ -1591,6 +1684,131 @@ export default function AiFoodWasteScan() {
                   </div>
                 </div>
 
+                {/* Purchase Provenance & Landmark Traceability Attachment Card */}
+                <div className="p-4 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white shadow-xs space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-blue-100">
+                    <div className="flex items-center gap-2">
+                      <Store className="w-4 h-4 text-blue-600" />
+                      <span className="text-xs font-bold text-slate-900">
+                        Purchase Provenance & Landmark Traceability
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Navigation className="w-3 h-3 text-blue-600" />
+                      <span>GPS & Bill Linked</span>
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Attach where this food/item was purchased to establish retail accountability, track store batch numbers, and route results directly across all three central dashboards.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Landmark / Store Dropdown */}
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-emerald-600" />
+                          <span>Purchase Landmark / Supermarket Store:</span>
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-normal">
+                          {SUPERMARKET_LANDMARKS.find(l => l.name === purchaseLandmark)?.gps || 'Live GPS Coordinated'}
+                        </span>
+                      </label>
+                      <select
+                        value={purchaseLandmark}
+                        onChange={(e) => setPurchaseLandmark(e.target.value)}
+                        className="w-full text-xs font-semibold bg-white border border-slate-300 rounded-lg p-2 text-slate-800 focus:outline-blue-500 shadow-2xs"
+                      >
+                        {SUPERMARKET_LANDMARKS.map((landmark) => (
+                          <option key={landmark.name} value={landmark.name}>
+                            {landmark.name} ({landmark.code})
+                          </option>
+                        ))}
+                      </select>
+                      {purchaseLandmark === 'Other / Custom Store...' && (
+                        <input
+                          type="text"
+                          value={customLandmark}
+                          onChange={(e) => setCustomLandmark(e.target.value)}
+                          placeholder="Type custom supermarket name, street or landmark..."
+                          className="mt-1.5 w-full text-xs bg-white border border-slate-300 rounded-lg p-2 text-slate-800 focus:outline-blue-500"
+                        />
+                      )}
+                    </div>
+
+                    {/* Receipt / Bill Number */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Receipt className="w-3 h-3 text-blue-600" />
+                          <span>Receipt / Bill Number:</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setBillNumber(`BILL-2026-${Math.floor(1000 + Math.random() * 9000)}`)}
+                          className="text-[10px] text-blue-600 hover:underline font-semibold cursor-pointer"
+                        >
+                          Regen #
+                        </button>
+                      </label>
+                      <input
+                        type="text"
+                        value={billNumber}
+                        onChange={(e) => setBillNumber(e.target.value)}
+                        placeholder="e.g. BILL-2026-8941"
+                        className="w-full text-xs font-mono font-semibold bg-white border border-slate-300 rounded-lg p-2 text-slate-800 focus:outline-blue-500"
+                      />
+                    </div>
+
+                    {/* Barcode / GTIN */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <Barcode className="w-3 h-3 text-purple-600" />
+                          <span>Barcode / GTIN:</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setBarcodeNumber(`890${Math.floor(1000000000 + Math.random() * 9000000000)}`)}
+                          className="text-[10px] text-purple-600 hover:underline font-semibold cursor-pointer"
+                        >
+                          Sample Barcode
+                        </button>
+                      </label>
+                      <input
+                        type="text"
+                        value={barcodeNumber}
+                        onChange={(e) => setBarcodeNumber(e.target.value)}
+                        placeholder="e.g. 8901030829141"
+                        className="w-full text-xs font-mono font-semibold bg-white border border-slate-300 rounded-lg p-2 text-slate-800 focus:outline-blue-500"
+                      />
+                    </div>
+
+                    {/* Purchase Date */}
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-amber-600" />
+                        <span>Purchase Date:</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={purchaseDate}
+                        onChange={(e) => setPurchaseDate(e.target.value)}
+                        className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 text-slate-800 focus:outline-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 text-[10px] text-blue-700 font-medium">
+                    <span className="flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span>Linked store: {effectiveLandmark.split('-')[0]}</span>
+                    </span>
+                    <span className="font-mono text-slate-500">Bill: {billNumber}</span>
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
@@ -1807,6 +2025,83 @@ export default function AiFoodWasteScan() {
           {/* E. Successful Real Result Card */}
           {result && !isAnalyzing && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
+              {/* 3-Step Visual Connected Pipeline Banner */}
+              <div className="p-3.5 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-teal-50/50 to-blue-50/60 shadow-2xs">
+                <div className="flex items-center justify-between pb-2 border-b border-emerald-100/80 mb-2.5">
+                  <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>3-Step Automated AI & Dashboard Pipeline</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCheck className="w-3 h-3 text-emerald-600" />
+                    <span>Connected to 3 Central Dashboards</span>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="bg-white/90 p-2.5 rounded-lg border border-emerald-200 shadow-2xs flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                      1
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-800 block">AI Spatial Vision</span>
+                      <span className="text-[10px] text-slate-500 block leading-tight">
+                        Inch-by-inch scan: {result.detected_class || result.detected_food || result.display_name || 'Food/Waste'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/90 p-2.5 rounded-lg border border-blue-200 shadow-2xs flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                      2
+                    </div>
+                    <div className="truncate">
+                      <span className="text-[11px] font-bold text-slate-800 block truncate">Purchase Provenance</span>
+                      <span className="text-[10px] text-slate-500 block leading-tight truncate">
+                        {effectiveLandmark.split('-')[0]} • {billNumber}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/90 p-2.5 rounded-lg border border-purple-200 shadow-2xs flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                      3
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-bold text-purple-900 block">3 Dashboards Ready</span>
+                      <span className="text-[10px] text-purple-700 block leading-tight">
+                        Citizen, Store & Admin Synced
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Purchase Provenance & Source Landmark Dossier Strip */}
+              <div className="px-3.5 py-2.5 rounded-xl border border-blue-200 bg-blue-50/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <Store className="w-3.5 h-3.5 text-blue-600" />
+                    <span>{effectiveLandmark}</span>
+                  </span>
+                  <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px] font-semibold">
+                    🧾 {billNumber}
+                  </span>
+                  <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px] flex items-center gap-1 font-semibold">
+                    <Barcode className="w-3.5 h-3.5 text-purple-600" />
+                    {barcodeNumber}
+                  </span>
+                  <span className="text-slate-600 text-[11px] flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                    {purchaseDate}
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Audit Trail Active</span>
+                </span>
+              </div>
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center font-bold">
@@ -2607,141 +2902,246 @@ export default function AiFoodWasteScan() {
                 </div>
               </div>
 
-              {/* Actions Footer */}
-              <div className="flex flex-wrap items-center gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Analyze Another
-                </button>
+              {/* Next Steps: 3-Dashboard Connected Action Routing Hub */}
+              <div className="pt-3 border-t border-slate-100 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-1">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+                      <span>Next Steps: Connected 3-Dashboard Action Hub</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Inch-by-inch detection and purchase provenance automatically synced across all three stakeholder portals.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shrink-0 self-start sm:self-auto flex items-center gap-1">
+                    <CheckCheck className="w-3 h-3 text-emerald-600" />
+                    <span>Cross-Dashboard Sync Active</span>
+                  </span>
+                </div>
 
-                {/* Copy Translated Dossier */}
-                <button
-                  type="button"
-                  onClick={copyTranslatedDossier}
-                  className="py-2.5 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-slate-300"
-                >
-                  {copiedDossier ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-600" />}
-                  <span>{copiedDossier ? 'Dossier Copied!' : 'Copy Translated Dossier'}</span>
-                </button>
+                {/* 3 Dashboard Action Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Card 1: Citizen Dashboard Action */}
+                  <div className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all ${
+                    result.freshness === 'Spoiled' || result.risk === 'High'
+                      ? 'bg-rose-50/70 border-rose-200'
+                      : 'bg-emerald-50/70 border-emerald-200'
+                  }`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                          1. Citizen Portal
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          result.freshness === 'Spoiled' || result.risk === 'High'
+                            ? 'bg-rose-200/80 text-rose-800'
+                            : 'bg-emerald-200/80 text-emerald-800'
+                        }`}>
+                          {result.freshness === 'Spoiled' || result.risk === 'High' ? 'Spoilage Incident' : 'Fresh Surplus'}
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-900 mb-1">
+                        {result.freshness === 'Spoiled' || result.risk === 'High'
+                          ? 'Consumer Spoilage Dispute'
+                          : 'Community Surplus Donation'}
+                      </h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed mb-2">
+                        {result.freshness === 'Spoiled' || result.risk === 'High'
+                          ? `Spoiled food detected with valid receipt ${billNumber}. Next step: File formal investigation against ${effectiveLandmark.split('-')[0]}.`
+                          : `Food is within freshness limits. Next step: Dispatch surplus to hunger-relief volunteers.`}
+                      </p>
+                      <div className="text-[10px] text-slate-500 font-mono mb-3">
+                        Ref: {billNumber} • {effectiveLandmark.split('-')[0]}
+                      </div>
+                    </div>
 
-                {/* Direct Action: View Official Audit Report */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const isSupermarket = user?.role === 'SUPERMARKET_OFFICIAL';
-                    const targetPath = isSupermarket ? '/supermarket/reports' : '/reports';
-                    navigate(targetPath, { 
-                      state: { 
-                        latestScanResult: {
-                          id: result.analysis_id || `AI-${Date.now().toString().slice(-6)}`,
-                          food: translatedResult?.displayName || result.display_name || result.detected_food || result.detected_category || 'Scanned Food/Waste',
-                          displayName: translatedResult?.displayName || result.display_name || result.detected_food || result.detected_category,
-                          freshness: translatedResult?.freshness || result.freshness || (result.prediction === 'fresh' ? 'Fresh' : result.prediction === 'spoiled' ? 'Spoiled' : 'Moderate'),
-                          risk: translatedResult?.risk || result.risk || (result.freshness === 'Spoiled' ? 'High' : 'Low'),
-                          confidence: result.confidence_pct || `${Math.round((result.confidence || 0.95) * 100)}%`,
-                          shelfLife: translatedResult?.shelfLife || result.shelf_life || '2-4 days',
-                          recommendation: translatedResult?.recommendation || result.recommendation || result.recommended_action || 'Analyzed via FoodCovering AI.',
-                          imageUrl: selectedImage,
-                          category: translatedResult?.category || result.category || 'Produce & Grocery',
-                          degradability: translatedResult?.wasteGroup || result.waste_group,
-                          sensor_telemetry: result.sensor_telemetry,
-                          sensorData: result.sensor_telemetry ? {
-                            temperature: `${result.sensor_telemetry.temperature}°C`,
-                            humidity: `${result.sensor_telemetry.humidity}%`,
-                            gasVoc: `${result.sensor_telemetry.ethylenePpm} ppm C2H4`,
-                            pH: `${result.sensor_telemetry.pH}`,
-                            gasVocColor: result.sensor_telemetry.spoilageRisk === 'Critical' ? 'red' : result.sensor_telemetry.spoilageRisk === 'Medium' ? 'amber' : 'green'
-                          } : undefined,
-                          timestamp: Date.now()
-                        } 
-                      } 
-                    });
-                  }}
-                  className="py-2.5 px-3.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>View Audit Report</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                    <div className="space-y-1.5 pt-2 border-t border-slate-200/60">
+                      {result.freshness === 'Spoiled' || result.risk === 'High' ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate('/user/complaints', {
+                            state: {
+                              focusCaseId: result.complaint_id,
+                              prefillScan: {
+                                food: result.display_name || result.detected_food || result.detected_category,
+                                freshness: 'Spoiled',
+                                confidence: result.confidence_pct || '95%',
+                                recommendation: result.recommendation || result.recommended_action,
+                                imageUrl: selectedImage,
+                                category: result.category || 'Produce / Fruit',
+                                purchaseLandmark: effectiveLandmark,
+                                billNumber: billNumber,
+                                barcode: barcodeNumber
+                              }
+                            }
+                          })}
+                          className="w-full py-2 px-3 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                        >
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                          <span>File Spoilage Complaint →</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => navigate('/user/donations', {
+                            state: {
+                              prefillScan: {
+                                food: translatedResult?.displayName || result.display_name || result.detected_food || result.detected_category,
+                                freshness: translatedResult?.freshness || result.freshness || 'Fresh',
+                                confidence: result.confidence_pct || '98%',
+                                shelfLife: translatedResult?.shelfLife || result.shelf_life || '3-4 days',
+                                recommendation: translatedResult?.recommendation || result.recommendation || result.recommended_action,
+                                imageUrl: selectedImage,
+                                category: translatedResult?.category || result.category || 'Produce / Fruit',
+                                purchaseLandmark: effectiveLandmark,
+                                billNumber: billNumber,
+                                barcode: barcodeNumber
+                              }
+                            }
+                          })}
+                          className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                        >
+                          <Gift className="w-3.5 h-3.5" />
+                          <span>Donate Surplus Food →</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => navigate('/user/dashboard')}
+                        className="w-full py-1.5 px-2 rounded-lg bg-white/80 hover:bg-white text-slate-700 font-semibold text-[11px] border border-slate-200 flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <span>Open Citizen Dashboard</span>
+                        <ArrowRight className="w-3 h-3 text-slate-400" />
+                      </button>
+                    </div>
+                  </div>
 
-                {(result.freshness === 'Fresh' || result.freshness === 'Moderate' || result.prediction === 'fresh' || result.prediction === 'moderate') && (
+                  {/* Card 2: Supermarket Official Dashboard Action */}
+                  <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/70 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600">
+                          2. Supermarket Store QA
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-200/80 text-blue-800">
+                          Store Audit
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-900 mb-1">
+                        Retail Store Inventory Audit
+                      </h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed mb-2">
+                        Linked to store location <strong>{effectiveLandmark.split('-')[0]}</strong>. GTIN barcode {barcodeNumber} flagged for shelf inspection & inventory recall.
+                      </p>
+                      <div className="text-[10px] text-blue-700 font-mono mb-3 truncate">
+                        📍 {effectiveLandmark}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-2 border-t border-blue-200/60">
+                      <button
+                        type="button"
+                        onClick={() => navigate('/supermarket/dashboard')}
+                        className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                      >
+                        <Store className="w-3.5 h-3.5" />
+                        <span>View Store QA Dashboard →</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/supermarket/inventory')}
+                        className="w-full py-1.5 px-2 rounded-lg bg-white/80 hover:bg-white text-slate-700 font-semibold text-[11px] border border-blue-200 flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <span>Audit Store Inventory</span>
+                        <ArrowRight className="w-3 h-3 text-slate-400" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Central Admin & Municipal Segregation Action */}
+                  <div className="p-3.5 rounded-xl border border-purple-200 bg-purple-50/70 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-600">
+                          3. Municipal Admin
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-200/80 text-purple-800">
+                          {result.waste_group || 'Biodegradable'}
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-900 mb-1">
+                        Citywide Waste Segregation Stream
+                      </h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed mb-2">
+                        {result.waste_group === 'Non-Biodegradable'
+                          ? `Segregated into Non-Biodegradable MRF channel (${result.non_bio_percentage ?? 85}% non-bio). Routed to dry recycling.`
+                          : `Segregated into Biodegradable channel (${result.bio_percentage ?? 95}% bio). Diverted to municipal composting & bio-CNG.`}
+                      </p>
+                      <div className="text-[10px] text-purple-700 font-medium mb-3">
+                        Bio: {result.bio_percentage ?? 90}% • Non-Bio: {result.non_bio_percentage ?? 10}%
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-2 border-t border-purple-200/60">
+                      <button
+                        type="button"
+                        onClick={() => navigate('/admin/dashboard')}
+                        className="w-full py-2 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                      >
+                        <Building2 className="w-3.5 h-3.5" />
+                        <span>View Municipal Admin Hub →</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/reports', {
+                          state: {
+                            latestScanResult: {
+                              id: result.analysis_id || `AI-${Date.now().toString().slice(-6)}`,
+                              food: result.display_name || result.detected_food || result.detected_category,
+                              freshness: result.freshness || 'Fresh',
+                              risk: result.risk || 'Low',
+                              confidence: result.confidence_pct || '95%',
+                              shelfLife: result.shelf_life || '2-4 days',
+                              timestamp: Date.now(),
+                              imageUrl: selectedImage,
+                              recommendation: result.recommendation || result.recommended_action,
+                              category: result.category || 'Produce & Grocery',
+                              purchaseLandmark: effectiveLandmark,
+                              billNumber: billNumber,
+                              barcode: barcodeNumber
+                            }
+                          }
+                        })}
+                        className="w-full py-1.5 px-2 rounded-lg bg-white/80 hover:bg-white text-slate-700 font-semibold text-[11px] border border-purple-200 flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <span>Official PDF Report</span>
+                        <ArrowRight className="w-3 h-3 text-slate-400" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Secondary Utility Controls */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
-                    onClick={() => navigate('/user/donations', { 
-                      state: { 
-                        prefillScan: {
-                          food: translatedResult?.displayName || result.display_name || result.detected_food || result.detected_category,
-                          freshness: translatedResult?.freshness || result.freshness || 'Fresh',
-                          confidence: result.confidence_pct || '98%',
-                          shelfLife: translatedResult?.shelfLife || result.shelf_life || '3-4 days',
-                          recommendation: translatedResult?.recommendation || result.recommendation || result.recommended_action,
-                          imageUrl: selectedImage,
-                          category: translatedResult?.category || result.category || 'Produce / Fruit'
-                        } 
-                      } 
-                    })}
-                    className="py-2.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    onClick={handleReset}
+                    className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Gift className="w-3.5 h-3.5" />
-                    <span>Donate Surplus</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Analyze Another Item</span>
                   </button>
-                )}
 
-                {(result.freshness === 'Spoiled' || result.risk === 'High' || result.prediction === 'spoiled') && (
-                  <div className="w-full flex flex-col sm:flex-row gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => navigate('/user/complaints', { 
-                        state: { 
-                          focusCaseId: result.complaint_id,
-                          prefillScan: {
-                            food: result.display_name || result.detected_food || result.detected_category,
-                            freshness: 'Spoiled',
-                            confidence: result.confidence_pct || '95%',
-                            recommendation: result.recommendation || result.recommended_action,
-                            imageUrl: selectedImage,
-                            category: result.category || 'Produce / Fruit'
-                          } 
-                        } 
-                      })}
-                      className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                    >
-                      <ShieldAlert className="w-3.5 h-3.5" />
-                      <span>AI Spoilage Investigation Case</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => navigate('/reports', { 
-                        state: { 
-                          latestScanResult: {
-                            id: result.analysis_id,
-                            food: result.display_name || result.detected_food || result.detected_category,
-                            freshness: 'Spoiled',
-                            risk: 'High',
-                            confidence: result.confidence_pct || '95%',
-                            shelfLife: 'Expired / Spoilage Detected',
-                            timestamp: Date.now(),
-                            imageUrl: selectedImage,
-                            gradcam_image: result.gradcam_image,
-                            recommendation: result.recommendation || result.recommended_action,
-                            category: result.category || 'Fruits & Vegetables',
-                            sensor_telemetry: result.sensor_telemetry
-                          }
-                        } 
-                      })}
-                      className="py-2.5 px-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-rose-400" />
-                      <span>Official PDF Spoilage Report</span>
-                    </button>
-                  </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={copyTranslatedDossier}
+                    className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-slate-300"
+                  >
+                    {copiedDossier ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-600" />}
+                    <span>{copiedDossier ? 'Dossier Copied!' : 'Copy Translated Dossier'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* 5. Correlated IoT Sensor Telemetry Panel */}

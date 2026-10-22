@@ -15,8 +15,15 @@ import {
   CheckCircle2,
   MapPin,
   Clock,
-  Leaf
+  Leaf,
+  Scan,
+  Sparkles,
+  Barcode,
+  Receipt,
+  Store,
+  Building
 } from 'lucide-react';
+import { useAnalysisStore, type AnalyzedFood } from '../store/useAnalysisStore';
 import { 
   LineChart, 
   Line, 
@@ -39,6 +46,12 @@ export default function Dashboard() {
   const { kpi, activity, tracking, charts, tables, cityMap } = usePipelineStore();
   const [chartTab, setChartTab] = useState<'category' | 'quality'>('category');
   const [rightTableTab, setRightTableTab] = useState<'complaints' | 'stakeholders'>('complaints');
+  const localScans = useAnalysisStore((state) => state.history);
+
+  const bioScansCount = localScans.filter(s => s.wasteStream === 'Biodegradable' || s.degradability === 'Biodegradable' || (s.spatialSummary?.bioPct ?? 50) >= 50).length;
+  const totalScansTracked = localScans.length;
+  const bioPctCalculated = totalScansTracked > 0 ? Math.round((bioScansCount / totalScansTracked) * 100) : 78;
+  const nonBioPctCalculated = 100 - bioPctCalculated;
 
   // User Management State from Head Office Admin API
   const [userManagementData, setUserManagementData] = useState<{
@@ -631,6 +644,105 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Connected Citywide AI Vision & Waste Segregation Stream */}
+      <div className="bg-white rounded-xl border border-gray-200/90 shadow-2xs p-4 mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-gray-100 gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700">
+              <Scan className="w-4 h-4 text-purple-700" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-gray-900">Citywide Food Safety & AI Waste Segregation Stream</h2>
+                <span className="text-[10px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+                  {localScans.length} Scans Synchronized
+                </span>
+              </div>
+              <p className="text-xs text-gray-500">
+                AI Deep Learning tensor classifications tracking retail store provenance, inch-by-inch segregation, and composting diversion.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+              🌱 {bioPctCalculated}% Organic Bio-Stream
+            </span>
+            <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200">
+              ♻️ {nonBioPctCalculated}% MRF Recyclable
+            </span>
+            <Link
+              to="/admin/ai-scan"
+              className="text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>AI Scan Studio</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Live Scan Cards Grid */}
+        {localScans.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {localScans.slice(0, 4).map((scan: AnalyzedFood) => {
+              const isBio = scan.wasteStream === 'Biodegradable' || (scan.spatialSummary?.bioPct ?? 50) >= 50;
+              return (
+                <div key={scan.id} className="p-3 rounded-xl border border-gray-100 bg-gray-50/70 hover:bg-white hover:shadow-xs transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                        isBio ? 'bg-emerald-100 text-emerald-800' : 'bg-purple-100 text-purple-800'
+                      }`}>
+                        {scan.wasteStream || (isBio ? 'Biodegradable' : 'Non-Biodegradable')}
+                      </span>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                        scan.freshness === 'Spoiled' ? 'bg-red-100 text-red-700' : 'bg-emerald-50 text-emerald-700'
+                      }`}>
+                        {scan.freshness || 'Verified'}
+                      </span>
+                    </div>
+
+                    <h4 className="text-xs font-bold text-gray-900 truncate">{scan.food}</h4>
+                    
+                    {scan.purchaseLandmark && (
+                      <div className="mt-1 flex items-center gap-1 text-[10px] text-blue-700 font-medium truncate">
+                        <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
+                        <span className="truncate">{scan.purchaseLandmark.split('-')[0]}</span>
+                      </div>
+                    )}
+
+                    <div className="mt-1 text-[9px] font-mono text-gray-400">
+                      🧾 {scan.billNumber || 'BILL-AUTO'} {scan.barcode ? `• 🏷️ ${scan.barcode.slice(-5)}` : ''}
+                    </div>
+
+                    <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                      {scan.recommendation || 'Verified by FoodCovering AI deep vision model.'}
+                    </p>
+                  </div>
+
+                  <div className="mt-2.5 pt-2 border-t border-gray-200/60 flex items-center justify-between text-[10px]">
+                    <span className="text-gray-400 font-mono">{new Date(scan.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <Link
+                      to="/reports"
+                      state={{ latestScanResult: scan }}
+                      className="text-purple-600 hover:text-purple-700 font-semibold"
+                    >
+                      Dossier →
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-6 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
+            <Scan className="w-7 h-7 text-gray-300 mx-auto mb-1.5" />
+            <p className="text-xs font-bold text-gray-700">No AI Scans Streamed Yet</p>
+            <p className="text-[11px] text-gray-400">Every citizen or store scan instantly synchronizes to this citywide compliance monitor.</p>
+          </div>
+        )}
       </div>
 
       {/* Row 4: Operational Intelligence & Impact (Bottom Row) */}

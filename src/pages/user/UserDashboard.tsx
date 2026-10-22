@@ -597,6 +597,17 @@ export default function UserDashboard() {
                       </div>
                     )}
                     <h4 className="text-xs font-bold text-slate-900 line-clamp-1">{scan.food}</h4>
+                    {scan.purchaseLandmark && (
+                      <div className="mt-1 flex items-center gap-1 text-[10px] text-blue-700 font-medium truncate">
+                        <MapPin className="w-3 h-3 text-blue-500 shrink-0" />
+                        <span className="truncate">{scan.purchaseLandmark.split('-')[0]}</span>
+                      </div>
+                    )}
+                    {scan.billNumber && (
+                      <div className="text-[9px] font-mono text-slate-400 mt-0.5">
+                        Bill: {scan.billNumber}
+                      </div>
+                    )}
                     <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
                       {scan.recommendation || 'Verified by FoodCovering AI inspection.'}
                     </p>
